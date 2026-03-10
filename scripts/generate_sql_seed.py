@@ -49,6 +49,32 @@ def main():
     print("🚀 Starting SQL Seed Generation...")
     sql_statements = []
 
+    # 0. Create Database Schemas
+    print("Generating Schema Creation Statements...")
+    sql_statements.append("-- ==========================================")
+    sql_statements.append("-- INITIALIZE SCHEMAS")
+    sql_statements.append("-- ==========================================")
+    
+    schema_sql = """
+    CREATE TABLE IF NOT EXISTS denominations (id TEXT PRIMARY KEY, name TEXT, family TEXT, founded_year TEXT, region_origin TEXT, description TEXT);
+    
+    CREATE TABLE IF NOT EXISTS questions (id TEXT PRIMARY KEY, category_code TEXT, priority_score REAL, full_text TEXT);
+    
+    CREATE TABLE IF NOT EXISTS answer_options (id TEXT PRIMARY KEY, question_id TEXT, answer_text TEXT, theological_label TEXT, description TEXT);
+    
+    CREATE TABLE IF NOT EXISTS denomination_answers (denomination_id TEXT, question_id TEXT, certainty REAL, tolerance REAL, PRIMARY KEY (denomination_id, question_id));
+    
+    CREATE TABLE IF NOT EXISTS denomination_selected_options (denomination_id TEXT, question_id TEXT, answer_text TEXT);
+    
+    CREATE TABLE IF NOT EXISTS denomination_compass_coordinates (denomination_id TEXT, mode TEXT, tolerance_score REAL, theol_cons_lib_avg REAL, social_cons_lib_avg REAL, counter_pro_modern_avg REAL, super_nat_avg REAL, cult_sep_eng_avg REAL, cleric_egal_avg REAL, div_hum_agency_avg REAL, commun_indiv_avg REAL, liturg_spont_avg REAL, sacram_funct_avg REAL, literal_crit_avg REAL, intellect_exper_avg REAL, PRIMARY KEY (denomination_id, mode));
+    
+    CREATE TABLE IF NOT EXISTS hidden_dimensions (question_id TEXT PRIMARY KEY, theol_cons_lib REAL, social_cons_lib REAL, counter_pro_modern REAL, super_nat REAL, cult_sep_eng REAL, cleric_egal REAL, div_hum_agency REAL, commun_indiv REAL, liturg_spont REAL, sacram_funct REAL, literal_crit REAL, intellect_exper REAL);
+    
+    CREATE TABLE IF NOT EXISTS answer_scoring (answer_id TEXT PRIMARY KEY, theol_cons_lib REAL, social_cons_lib REAL, counter_pro_modern REAL, super_nat REAL, cult_sep_eng REAL, cleric_egal REAL, div_hum_agency REAL, commun_indiv REAL, liturg_spont REAL, sacram_funct REAL, literal_crit REAL, intellect_exper REAL);
+    """
+    
+    sql_statements.append(schema_sql)
+
     # 1. Denominations
     print("Processing Denominations...")
     df_denoms = pd.read_csv(FILES['doctrines'])
@@ -167,6 +193,68 @@ def main():
         
         sql = f"INSERT OR REPLACE INTO denomination_compass_coordinates (denomination_id, mode, tolerance_score, theol_cons_lib_avg, social_cons_lib_avg, counter_pro_modern_avg, super_nat_avg, cult_sep_eng_avg, cleric_egal_avg, div_hum_agency_avg, commun_indiv_avg, liturg_spont_avg, sacram_funct_avg, literal_crit_avg, intellect_exper_avg) VALUES ({d_id}, {mode}, {tol_score}, {tcl}, {scl}, {cpm}, {sn}, {cse}, {ce}, {dha}, {ci}, {ls}, {sf}, {lc}, {ie});"
         sql_statements.append(sql)
+
+
+    # 6. Hidden Dimensions
+    print("Processing Hidden Dimensions...")
+    df_dims = pd.read_csv(FILES['hidden_dims'])
+    sql_statements.append("\n-- ==========================================")
+    sql_statements.append("-- TABLE: hidden_dimensions")
+    sql_statements.append("-- ==========================================")
+    
+    # Map verbose CSV headers to standard database column names
+    dim_cols = {
+        'Theol_Cons_Lib': 'theol_cons_lib', 'Social_Cons_Lib': 'social_cons_lib',
+        'Counter_Pro_Modernity': 'counter_pro_modern', 'Supernatural_Natural': 'super_nat',
+        'Cultural_Sep_Eng': 'cult_sep_eng', 'Clerical_Egal': 'cleric_egal',
+        'Divine_Human_Agency': 'div_hum_agency', 'Communal_Individual': 'commun_indiv',
+        'Liturgical_Spontaneous': 'liturg_spont', 'Sacramental_Functional': 'sacram_funct',
+        'Literal_Critical': 'literal_crit', 'Intellectual_Experiential': 'intellect_exper'
+    }
+    
+    for _, row in df_dims.iterrows():
+        q_id = clean_str(row['Question_ID'])
+        cols = ['question_id']
+        vals = [q_id]
+        
+        for csv_col, db_col in dim_cols.items():
+            if csv_col in row and not pd.isna(row[csv_col]):
+                cols.append(db_col)
+                vals.append(clean_num(row[csv_col]))
+                
+        sql = f"INSERT OR REPLACE INTO hidden_dimensions ({', '.join(cols)}) VALUES ({', '.join(vals)});"
+        sql_statements.append(sql)
+
+
+    # 7. Answer Scoring Matrix (Dimensions)
+    print("Processing Answer Scoring Matrix...")
+    df_scores = pd.read_csv(FILES['answers'])
+    sql_statements.append("\n-- ==========================================")
+    sql_statements.append("-- TABLE: answer_scoring")
+    sql_statements.append("-- ==========================================")
+    
+    score_cols = {
+        'Theol_Cons_Lib': 'theol_cons_lib', 'Social_Cons_Lib': 'social_cons_lib',
+        'Counter_Pro_Modern': 'counter_pro_modern', 'Super_Nat': 'super_nat',
+        'Cult_Sep_Eng': 'cult_sep_eng', 'Cleric_Egal': 'cleric_egal',
+        'Div_Hum_Agency': 'div_hum_agency', 'Commun_Indiv': 'commun_indiv',
+        'Liturg_Spont': 'liturg_spont', 'Sacram_Funct': 'sacram_funct',
+        'Literal_Crit': 'literal_crit', 'Intellect_Exper': 'intellect_exper'
+    }
+    
+    for _, row in df_scores.iterrows():
+        a_id = clean_str(row['Answer_ID'])
+        cols = ['answer_id']
+        vals = [a_id]
+        
+        for csv_col, db_col in score_cols.items():
+            if csv_col in row and not pd.isna(row[csv_col]) and str(row[csv_col]).strip() != 'N/A':
+                cols.append(db_col)
+                vals.append(clean_num(row[csv_col]))
+                
+        sql = f"INSERT OR REPLACE INTO answer_scoring ({', '.join(cols)}) VALUES ({', '.join(vals)});"
+        sql_statements.append(sql)
+
 
     # Write output
     with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:

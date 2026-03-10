@@ -56,6 +56,21 @@ export default {
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
 
+            // -----------------------------------------------------------------
+      // ENDPOINT 4: Get Scoring Math (GET)
+      // For frontend client-side calculation (Option B)
+      // -----------------------------------------------------------------
+      if (url.pathname === "/api/scoring" && request.method === "GET") {
+        const dimensions = await env.DB.prepare("SELECT * FROM hidden_dimensions").all();
+        const answers = await env.DB.prepare("SELECT * FROM answer_scoring").all();
+        
+        return new Response(JSON.stringify({
+          hidden_dimensions: dimensions.results,
+          answer_scoring: answers.results
+        }), { headers: corsHeaders });
+      }
+
+
       // -----------------------------------------------------------------
       // DEFAULT: Health Check
       // -----------------------------------------------------------------
