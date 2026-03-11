@@ -33,16 +33,84 @@ export default {
 
       // -----------------------------------------------------------------
       // ENDPOINT 2: Question Catalogue
-      // Replaces: data.js (Questions array)
       // -----------------------------------------------------------------
       if (url.pathname === "/api/questions") {
-        // We fetch all questions ordered by their ID
-        const { results } = await env.DB.prepare(
-          "SELECT * FROM questions ORDER BY question_id ASC"
-        ).all();
-        
-        return new Response(JSON.stringify(results), { headers: corsHeaders });
+        try {
+          // 1. Get the mode parameter from the URL (default to quick)
+          const mode = url.searchParams.get('mode') || 'quick';
+
+          // 2. Build dynamic SQL based on mode
+          let filterClause = "";
+          let orderClause = "";
+
+          if (mode === 'quick') {
+            filterClause = "WHERE q.include_quick = 1";
+            orderClause = "ORDER BY q.display_order_quick ASC";
+          } else if (mode === 'standard') {
+            filterClause = "WHERE q.include_standard = 1";
+            orderClause = "ORDER BY q.display_order_standard ASC";
+          } else if (mode === 'deep') {
+            filterClause = "WHERE q.include_deep = 1";
+            orderClause = "ORDER BY q.display_order_deep ASC";
+          } else {
+            return new Response(JSON.stringify({ error: "Invalid mode parameter." }), { status: 400, headers: corsHeaders });
+          }
+
+          // 3. Execute the JOIN query with the dynamic clauses
+          const stmt = env.DB.prepare(`
+            SELECT 
+              q.id as question_id, 
+              q.category_code as category_code, 
+              q.full_text as full_text,
+              a.id as answer_record_id,
+              a.answer_text as answer_text,
+              a.description as answer_description
+            FROM questions q
+            LEFT JOIN answer_options a ON q.id = a.question_id
+            ${filterClause}
+            ${orderClause}
+          `);
+
+          const { results } = await stmt.all();
+
+          // 4. Map the flat SQL results into nested JSON
+          const questionsMap = new Map();
+
+          // Because we order by display_order in SQL, the first time we see a question_id, 
+          // it is in the correct sequence. A Map preserves insertion order in JavaScript!
+          results.forEach((row: any) => {
+            if (!questionsMap.has(row.question_id)) {
+              questionsMap.set(row.question_id, {
+                id: row.question_id,           
+                category: row.category_code,   
+                question: row.full_text,       
+                answers: []
+              });
+            }
+
+            if (row.answer_record_id) {
+              questionsMap.get(row.question_id).answers.push({
+                id: row.answer_record_id.toString(),
+                text: row.answer_text,
+                desc: row.answer_description || "",
+                isSilence: false
+              });
+            }
+          });
+
+          const formattedQuestions = Array.from(questionsMap.values());
+          return new Response(JSON.stringify(formattedQuestions), { headers: corsHeaders });
+          
+        } catch (dbError: any) {
+          console.error("SQL ERROR IN /api/questions:", dbError.message);
+          return new Response(JSON.stringify({ error: "SQL Error", details: dbError.message }), { 
+            status: 500, 
+            headers: corsHeaders 
+          });
+        }
       }
+
+
 
       // -----------------------------------------------------------------
       // ENDPOINT 3: Pairwise Alignment Matrix

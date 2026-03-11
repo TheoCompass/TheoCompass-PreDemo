@@ -27,8 +27,8 @@ FILES = {
     'mode_summary': os.path.join(PRECOMP_DIR, 'denomination_mode_summary.csv')
 }
 
-# Ensure the final seed file drops into the root folder
-OUTPUT_FILE = os.path.join(ROOT_DIR, 'seed.sql')
+# Drop the final seed file directly into the API folder for Wrangler
+OUTPUT_FILE = os.path.join(ROOT_DIR, 'theocompass-api', 'seed.sql')
 
 def clean_str(val):
     if pd.isna(val):
@@ -55,23 +55,47 @@ def main():
     sql_statements.append("-- INITIALIZE SCHEMAS")
     sql_statements.append("-- ==========================================")
     
+    # We added the 6 sequence columns to the questions table here!
     schema_sql = """
-    CREATE TABLE IF NOT EXISTS denominations (id TEXT PRIMARY KEY, name TEXT, family TEXT, founded_year TEXT, region_origin TEXT, description TEXT);
+    -- 1. Wipe existing tables clean to prevent schema conflicts
+    DROP TABLE IF EXISTS denominations;
+    DROP TABLE IF EXISTS questions;
+    DROP TABLE IF EXISTS answer_options;
+    DROP TABLE IF EXISTS denomination_answers;
+    DROP TABLE IF EXISTS denomination_selected_options;
+    DROP TABLE IF EXISTS denomination_compass_coordinates;
+    DROP TABLE IF EXISTS hidden_dimensions;
+    DROP TABLE IF EXISTS answer_scoring;
+
+    -- 2. Recreate tables with correct schemas
+    CREATE TABLE denominations (id TEXT PRIMARY KEY, name TEXT, family TEXT, founded_year TEXT, region_origin TEXT, description TEXT);
     
-    CREATE TABLE IF NOT EXISTS questions (id TEXT PRIMARY KEY, category_code TEXT, priority_score REAL, full_text TEXT);
+    CREATE TABLE questions (
+        id TEXT PRIMARY KEY, 
+        category_code TEXT, 
+        priority_score REAL, 
+        full_text TEXT,
+        include_quick INTEGER,
+        display_order_quick REAL,
+        include_standard INTEGER,
+        display_order_standard REAL,
+        include_deep INTEGER,
+        display_order_deep REAL
+    );
     
-    CREATE TABLE IF NOT EXISTS answer_options (id TEXT PRIMARY KEY, question_id TEXT, answer_text TEXT, theological_label TEXT, description TEXT);
+    CREATE TABLE answer_options (id TEXT PRIMARY KEY, question_id TEXT, answer_text TEXT, theological_label TEXT, description TEXT);
     
-    CREATE TABLE IF NOT EXISTS denomination_answers (denomination_id TEXT, question_id TEXT, certainty REAL, tolerance REAL, PRIMARY KEY (denomination_id, question_id));
+    CREATE TABLE denomination_answers (denomination_id TEXT, question_id TEXT, certainty REAL, tolerance REAL, PRIMARY KEY (denomination_id, question_id));
     
-    CREATE TABLE IF NOT EXISTS denomination_selected_options (denomination_id TEXT, question_id TEXT, answer_text TEXT);
+    CREATE TABLE denomination_selected_options (denomination_id TEXT, question_id TEXT, answer_text TEXT);
     
-    CREATE TABLE IF NOT EXISTS denomination_compass_coordinates (denomination_id TEXT, mode TEXT, tolerance_score REAL, theol_cons_lib_avg REAL, social_cons_lib_avg REAL, counter_pro_modern_avg REAL, super_nat_avg REAL, cult_sep_eng_avg REAL, cleric_egal_avg REAL, div_hum_agency_avg REAL, commun_indiv_avg REAL, liturg_spont_avg REAL, sacram_funct_avg REAL, literal_crit_avg REAL, intellect_exper_avg REAL, PRIMARY KEY (denomination_id, mode));
+    CREATE TABLE denomination_compass_coordinates (denomination_id TEXT, mode TEXT, tolerance_score REAL, theol_cons_lib_avg REAL, social_cons_lib_avg REAL, counter_pro_modern_avg REAL, super_nat_avg REAL, cult_sep_eng_avg REAL, cleric_egal_avg REAL, div_hum_agency_avg REAL, commun_indiv_avg REAL, liturg_spont_avg REAL, sacram_funct_avg REAL, literal_crit_avg REAL, intellect_exper_avg REAL, PRIMARY KEY (denomination_id, mode));
     
-    CREATE TABLE IF NOT EXISTS hidden_dimensions (question_id TEXT PRIMARY KEY, theol_cons_lib REAL, social_cons_lib REAL, counter_pro_modern REAL, super_nat REAL, cult_sep_eng REAL, cleric_egal REAL, div_hum_agency REAL, commun_indiv REAL, liturg_spont REAL, sacram_funct REAL, literal_crit REAL, intellect_exper REAL);
+    CREATE TABLE hidden_dimensions (question_id TEXT PRIMARY KEY, theol_cons_lib REAL, social_cons_lib REAL, counter_pro_modern REAL, super_nat REAL, cult_sep_eng REAL, cleric_egal REAL, div_hum_agency REAL, commun_indiv REAL, liturg_spont REAL, sacram_funct REAL, literal_crit REAL, intellect_exper REAL);
     
-    CREATE TABLE IF NOT EXISTS answer_scoring (answer_id TEXT PRIMARY KEY, theol_cons_lib REAL, social_cons_lib REAL, counter_pro_modern REAL, super_nat REAL, cult_sep_eng REAL, cleric_egal REAL, div_hum_agency REAL, commun_indiv REAL, liturg_spont REAL, sacram_funct REAL, literal_crit REAL, intellect_exper REAL);
+    CREATE TABLE answer_scoring (answer_id TEXT PRIMARY KEY, theol_cons_lib REAL, social_cons_lib REAL, counter_pro_modern REAL, super_nat REAL, cult_sep_eng REAL, cleric_egal REAL, div_hum_agency REAL, commun_indiv REAL, liturg_spont REAL, sacram_funct REAL, literal_crit REAL, intellect_exper REAL);
     """
+
     
     sql_statements.append(schema_sql)
 
@@ -92,20 +116,49 @@ def main():
         sql = f"INSERT OR REPLACE INTO denominations (id, name, family, founded_year, region_origin, description) VALUES ({d_id}, {name}, {family}, {year}, {region}, {desc});"
         sql_statements.append(sql)
 
-    # 2. Questions
-    print("Processing Questions...")
+    # 2. Questions (Merged with Sequence)
+    print("Processing Questions and Quiz Sequence...")
     df_q = pd.read_csv(FILES['questions'])
+    df_seq = pd.read_csv(FILES['sequence'])
+    
+    # Merge on Question_ID
+    df_merged_q = pd.merge(df_q, df_seq, on='Question_ID', how='left')
+    
     sql_statements.append("\n-- ==========================================")
-    sql_statements.append("-- TABLE: questions")
+    sql_statements.append("-- TABLE: questions (with sequence)")
     sql_statements.append("-- ==========================================")
-    for _, row in df_q.iterrows():
+    for _, row in df_merged_q.iterrows():
         q_id = clean_str(row['Question_ID'])
-        cat = clean_str(row['Category_Code'])
-        score = clean_num(row['Priority_Score'])
-        text = clean_str(row['Full_Question'])
         
-        sql = f"INSERT OR REPLACE INTO questions (id, category_code, priority_score, full_text) VALUES ({q_id}, {cat}, {score}, {text});"
-        sql_statements.append(sql)
+        # Grab from the master side (_x)
+        cat = clean_str(row['Category_Code_x'])
+        score = clean_num(row['Priority_Score_x'])
+        
+        text_col = 'Full_Question_x' if 'Full_Question_x' in row else 'Full_Question'
+        text = clean_str(row[text_col])
+        
+        # Sequence data (from QUIZ_SEQUENCE) - FIX IS HERE
+        # We strip strings and check for 'TRUE'. If it matches, we output the integer 1. Otherwise 0.
+        
+        val_quick = str(row.get('Include_Quick')).strip().upper()
+        inc_quick = 1 if val_quick == 'TRUE' else 0
+        ord_quick = clean_num(row.get('Display_Order_Quick'))
+        
+        val_std = str(row.get('Include_Standard')).strip().upper()
+        inc_std = 1 if val_std == 'TRUE' else 0
+        ord_std = clean_num(row.get('Display_Order_Standard'))
+        
+        val_deep = str(row.get('Include_Deep')).strip().upper()
+        inc_deep = 1 if val_deep == 'TRUE' else 0
+        ord_deep = clean_num(row.get('Display_Order_Deep'))
+        
+        sql = f"""INSERT OR REPLACE INTO questions 
+        (id, category_code, priority_score, full_text, include_quick, display_order_quick, include_standard, display_order_standard, include_deep, display_order_deep) 
+        VALUES ({q_id}, {cat}, {score}, {text}, {inc_quick}, {ord_quick}, {inc_std}, {ord_std}, {inc_deep}, {ord_deep});"""
+        
+        sql_statements.append(sql.replace('\n', ' '))
+
+
 
     # 3. Answer Options
     print("Processing Answer Options...")
