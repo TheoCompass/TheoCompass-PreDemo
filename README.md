@@ -50,6 +50,7 @@ Finally, you execute the generated SQL file against your production Cloudflare D
 
 ```bash
 cd theocompass-api
+npx wrangler d1 execute theocompass-db --remote --file=./reset.sql
 npx wrangler d1 execute theocompass-db --remote --file=./seed.sql
 ```
 *(Note: Use `--local` instead of `--remote` if you are just testing on your local machine).*
