@@ -46,9 +46,16 @@ The frontend tracks user progress in a Next.js client component (`userAnswers` s
 * **Hostile Silence** ("I reject this framing"): Injects Certainty 3, Tolerance 1. 
 The backend handles these automatically, forcing neutral coordinates (50) and applying the amplified distance penalties.
 
-## 7. Next Immediate Tasks (Where we are now)
-The data pipeline, database, question-serving API, and the massive Euclidean calculation engine are **fully operational**. Here is what we need to build next:
+## 7. Current Status & Next Immediate Tasks
+The core backend pipeline, D1 database, Euclidean calculation engine, and the primary Results Dashboard UI are now fully operational. The frontend successfully maps user stances across 12 dimensions, calculates tolerance, and plots them dynamically against the D1-backed scatter landscape.
 
-1. **Results Dashboard UI (Frontend):** Build the Next.js view to catch the `POST /api/calculate` response. We need a clean, Tailwind-styled list or grid to display the calculated Top 10 matching denominations, including their percentages and family groups.
-2. **User Coordinate Generation:** The backend currently calculates the User-to-Denomination match, but we also need to extract the User's final 12-axis averages so we can plot them on the radar chart alongside their top matches.
-3. **Data Visualization:** Integrate Chart.js or Recharts to build the 12-axis diverging bar chart and the theological tag cloud.
+### Next Immediate Tasks (Where we are now):
+1. **Wiki / Deep Dive Pages:** 
+   Build dynamic routes (e.g., `/denomination/[id]`) so users can click on a Top 10 result and see exactly *how* that denomination answered the 120 questions compared to the user.
+2. **Standard & Deep Modes:**
+   The frontend currently locks users into the 30-question "Quick" mode. We need to unlock the "Standard" (70 Qs) and "Deep" (120 Qs) modes by ensuring the frontend correctly passes the URL parameters to the API.
+3. **Database Expansion:**
+   Transition the database from the 30 "Pre-Demo" denominations to the full 230+ master list by executing the final `seed.sql` generated from the domain expert's master CSV.
+4. **Mobile Optimization & Polish:**
+   Review all UI elements (especially the 12-axis chart and Recharts tooltips) on mobile viewports to ensure scaling and touch targets are optimal.
+

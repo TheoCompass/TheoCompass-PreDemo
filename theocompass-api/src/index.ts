@@ -32,15 +32,23 @@ export default {
     try {
       // -----------------------------------------------------------------
       // ENDPOINT 1: Scattermap Coordinates
-      // Replaces: denomination_mode_summary.csv
       // -----------------------------------------------------------------
       if (url.pathname === "/api/coordinates") {
-        const { results } = await env.DB.prepare(
-          "SELECT * FROM denomination_compass_coordinates"
-        ).all();
+        // JOIN the coordinates with the master denominations table to get names and metadata
+        const { results } = await env.DB.prepare(`
+          SELECT 
+            c.*, 
+            d.name, 
+            d.family, 
+            d.region_origin as origin, 
+            d.founded_year as year 
+          FROM denomination_compass_coordinates c
+          LEFT JOIN denominations d ON c.denomination_id = d.id
+        `).all();
         
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
+
 
       // -----------------------------------------------------------------
       // ENDPOINT 2: Question Catalogue
@@ -387,14 +395,99 @@ async function handleCalculate(request: Request, env: Env, corsHeaders: Record<s
         id: denomId,
         name: denom.name,
         family: denom.family || "Unknown",
-        matchPercentage: Number(matchPercentage.toFixed(2))
+        matchPercentage: Number(matchPercentage.toFixed(2)),
+        description: denom.description || "",
+        founded_year: denom.foundedyear || "",
+        region_origin: denom.regionorigin || ""
       };
     });
 
     results.sort((a: any, b: any) => b.matchPercentage - a.matchPercentage);
     const topMatches = results.slice(0, 10);
 
-    return new Response(JSON.stringify({ status: "success", matches: topMatches }), { status: 200, headers: corsHeaders });
+    // ==========================================
+    // CALCULATE USER'S THEOLOGICAL FINGERPRINT
+    // ==========================================
+    const userDimCoords: Record<string, number> = {};
+    
+    // 1. Calculate the 12 Primary Dimensions
+    TC_DIMS.forEach(dim => {
+      let dimWeightedSum = 0;
+      let dimTotalWeight = 0;
+
+      userAnswersArray.forEach(userAns => {
+        const qid = userAns.questionId;
+        const qMeta = qMap[qid];
+        const qDims = dimMap[qid];
+        
+        // Skip if missing data or dimension isn't relevant to this question
+        if (!qMeta || !qDims || Number(qDims[dim]) < 50) return;
+
+        const priority = Number(qMeta.priorityscore || qMeta.priority_score || 5);
+        const bw = baseWeight(priority);
+        const dimWLin = (Number(qDims[dim]) / 100) * bw;
+
+        const uPosture = getPosture(userAns.isSilence, userAns.silenceType);
+        
+        // Skip dimensions if the user was silent/apathetic/hostile 
+        // (we only plot affirmed stances for coordinates)
+        if (uPosture !== 'affirmed') return;
+
+        const ansData = answerMap[userAns.answerId];
+        if (!ansData || isNaN(Number(ansData[dim]))) return;
+        
+        const dimScore = Number(ansData[dim]);
+        const postureW = postureFactor(uPosture) * tolAmp(userAns.tolerance) * certAmp(userAns.certainty);
+        const w = dimWLin * postureW;
+
+        dimWeightedSum += (dimScore * w);
+        dimTotalWeight += w;
+      });
+
+      userDimCoords[dim] = dimTotalWeight > 0 ? Number((dimWeightedSum / dimTotalWeight).toFixed(1)) : 50;
+    });
+
+    // 2. Calculate the 13th Axis: Tolerance Score
+    let tolWeightedSum = 0;
+    let tolTotalWeight = 0;
+    
+    console.log("--- STARTING TOLERANCE CALC ---");
+    
+    userAnswersArray.forEach(userAns => {
+       const uPosture = getPosture(userAns.isSilence, userAns.silenceType);
+       if (uPosture !== 'affirmed') return;
+       
+       // Ensure C and T are strictly numbers
+       const cVal = Number(userAns.certainty ?? 2);
+       const tVal = Number(userAns.tolerance ?? 2);
+
+       // App.js weighting: wT = 1 + C
+       const wT = 1 + cVal; 
+       
+       console.log(`QID: ${userAns.questionId} | C: ${cVal} | T: ${tVal} | wT: ${wT}`);
+       
+       tolWeightedSum += (tVal * wT);
+       tolTotalWeight += wT;
+    });
+
+    let userTolerance = 50;
+    if (tolTotalWeight > 0) {
+        const averageTValue = tolWeightedSum / tolTotalWeight;
+        userTolerance = Number((averageTValue * 25).toFixed(1));
+    }
+    
+    console.log(`FINAL TOLERANCE -> Sum: ${tolWeightedSum} | Weight: ${tolTotalWeight} | Score: ${userTolerance}`);
+
+
+
+    // 3. Return the expanded response
+    return new Response(JSON.stringify({ 
+      status: "success", 
+      matches: topMatches,
+      userDimCoords: userDimCoords,
+      userTolerance: userTolerance
+    }), { status: 200, headers: corsHeaders });
+
 
   } catch (error: any) {
     console.error("CALCULATION ERROR:", error);
