@@ -6,8 +6,7 @@ import Image from "next/image";
 import html2canvas from "html2canvas-pro";
 import CompassChart from "./CompassChart"; 
 import TheologicalLabelCloud from "./TheologicalLabelCloud"; 
-
-
+import { useRouter } from 'next/navigation';
 
 // --- TYPES ---
 interface Answer {
@@ -23,7 +22,6 @@ interface Question {
   answers: Answer[];
 }
 
-// Track the user's choices
 interface UserResponse {
   questionId: string;
   answerId: string;
@@ -32,7 +30,6 @@ interface UserResponse {
   isSilence: boolean;
   silenceType?: "apathetic" | "hostile";
 }
-
 
 // --- CHART CONFIGURATION ---
 const AXIS_LABELS: Record<string, { left: string, right: string, desc: string }> = {
@@ -63,10 +60,9 @@ const QUIZ_CATEGORY_LABELS: Record<string, string> = {
   "MET": "Overarching Theological Approaches",
 };
 
-// --- NEW COMPONENT: Expandable Denomination Card ---
+// --- COMPONENT: Expandable Denomination Card ---
 export function DenominationCard({ denom, rank }: { denom: any, rank: number }) {
   const [isOpen, setIsOpen] = useState(false);
-
   return (
     <div className="bg-white border border-slate-200 rounded-xl shadow-sm mb-3 overflow-hidden transition-all duration-200 hover:border-slate-300">
       <div 
@@ -82,7 +78,6 @@ export function DenominationCard({ denom, rank }: { denom: any, rank: number }) 
             <div className="text-xs text-slate-500">{denom.family}</div>
           </div>
         </div>
-        
         <div className="flex items-center gap-4">
           <div className="font-bold text-lg text-slate-700 bg-slate-50 px-3 py-1 rounded-lg">
             {denom.matchPercentage}%
@@ -94,7 +89,6 @@ export function DenominationCard({ denom, rank }: { denom: any, rank: number }) 
           </div>
         </div>
       </div>
-
       {isOpen && (
         <div className="p-4 pt-0 border-t border-slate-100 bg-slate-50">
           <div className="flex gap-4 mt-3 mb-3 text-xs text-slate-500 font-mono">
@@ -110,8 +104,6 @@ export function DenominationCard({ denom, rank }: { denom: any, rank: number }) 
   );
 }
 
-
-
 export default function QuizPage() {
   // --- APP STATE ---
   const [currentView, setCurrentView] = useState<"mode-select" | "instructions" | "quiz" | "results">("mode-select");
@@ -124,62 +116,34 @@ export default function QuizPage() {
 
   // --- QUIZ STATE ---
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [userAnswers, setUserAnswers] = useState<Record<string, UserResponse>>({}); // Stores all answers
+  const [userAnswers, setUserAnswers] = useState<Record<string, UserResponse>>({}); 
+
+  // --- LOCAL STORAGE & HYDRATION STATE ---
+  const [isLoaded, setIsLoaded] = useState(false); // Prevents UI flicker/save before load
 
   // --- RESULTS STATE ---
   const [results, setResults] = useState<any[]>([]);
   const [userCoords, setUserCoords] = useState<Record<string, number>>({});
   const [userTolerance, setUserTolerance] = useState<number>(50);
   const [userLabels, setUserLabels] = useState([]);
-  useEffect(() => {
-  console.log("userLabels state updated:", userLabels.length);
-}, [userLabels]); 
-
   const [isCalculating, setIsCalculating] = useState(false);
 
   // --- SCREENSHOT REF ---
   const exportRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
 
-  const handleDownloadImage = async () => {
-    if (!exportRef.current) return;
-    setIsExporting(true);
-    
-    try {
-      // Temporarily make it visible for html2canvas to read it properly
-      exportRef.current.style.position = 'static';
-      exportRef.current.style.left = 'auto';
-      
-      const canvas = await html2canvas(exportRef.current, {
-        scale: 2, 
-        useCORS: true,
-        backgroundColor: "#0f172a", // Dark slate background for the PNG
-      });
-      
-      const dataURL = canvas.toDataURL("image/png");
-      const link = document.createElement("a");
-      link.download = "TheoCompass-Results.png";
-      link.href = dataURL;
-      link.click();
-    } catch (err) {
-      console.error("Failed to generate image", err);
-    } finally {
-      // Hide it again
-      if (exportRef.current) {
-        exportRef.current.style.position = 'absolute';
-        exportRef.current.style.left = '-9999px';
-      }
-      setIsExporting(false);
-    }
-  };
+  // --- ROUTER & MODALS ---
+  const router = useRouter();
+  const [showBackModal, setShowBackModal] = useState(false);
+  const [showDevModal, setShowDevModal] = useState(false);
+  const [showRestartModal, setShowRestartModal] = useState(false); 
+  const [devCode, setDevCode] = useState("");
 
-  
   // Current question temporary state
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [expandedInfo, setExpandedInfo] = useState<string | null>(null);
   const [isSilenceSelected, setIsSilenceSelected] = useState(false);
   const [silenceType, setSilenceType] = useState<"apathetic" | "hostile" | null>(null);
-  
   const [certainty, setCertainty] = useState(2); 
   const [tolerance, setTolerance] = useState(2); 
 
@@ -189,12 +153,87 @@ export default function QuizPage() {
   const progressPercentage = totalQuestions > 0 ? ((currentQuestionIndex) / totalQuestions) * 100 : 0;
   const hasPrimaryKeyword = currentQuestion?.question.toLowerCase().includes("primary");
 
-  // Helper arrays for sliders
+  // Helper arrays
   const certaintyLabels = ["Not Sure", "Leaning", "Pretty Sure", "Certain"];
   const certaintyTextColors = ["text-slate-400", "text-sky-500", "text-blue-600", "text-brand-dark"];
   const toleranceLabels = ["Salvation Issue", "Opposed", "Discerning", "Charitable", "Accepting"];
 
-  // --- HANDLERS ---
+  // ==========================================
+  // LOCAL STORAGE LOGIC
+  // ==========================================
+
+  // 1. LOAD PROGRESS ON MOUNT
+  useEffect(() => {
+    const savedData = localStorage.getItem('theocompass_quiz_progress');
+    if (savedData) {
+      try {
+        const data = JSON.parse(savedData);
+        // Only restore if we have valid data
+        if (data.questions && data.questions.length > 0) {
+          setQuestions(data.questions);
+          setUserAnswers(data.userAnswers || {});
+          setCurrentQuestionIndex(data.currentQuestionIndex || 0);
+          setSelectedMode(data.selectedMode || null);
+          setCurrentView("quiz"); // Jump straight to quiz
+        }
+      } catch (e) {
+        console.error("Failed to load saved progress", e);
+      }
+    }
+    setIsLoaded(true);
+  }, []);
+
+  // 2. SAVE PROGRESS ON CHANGE
+  useEffect(() => {
+    // Only save if component is loaded and we are in quiz mode
+    if (isLoaded && currentView === "quiz" && questions.length > 0) {
+      const dataToSave = {
+        questions,
+        userAnswers,
+        currentQuestionIndex,
+        selectedMode
+      };
+      localStorage.setItem('theocompass_quiz_progress', JSON.stringify(dataToSave));
+    }
+    
+    // 3. CLEAR PROGRESS ON RESULTS
+    if (currentView === "results") {
+      localStorage.removeItem('theocompass_quiz_progress');
+    }
+  }, [isLoaded, currentView, questions, userAnswers, currentQuestionIndex, selectedMode]);
+
+  // 4. SYNC UI STATE (Restores visual state for current question after refresh)
+  useEffect(() => {
+    if (currentView === "quiz" && currentQuestion && userAnswers[currentQuestion.id]) {
+      restoreQuestionState(userAnswers[currentQuestion.id]);
+    } else if (currentView === "quiz") {
+      resetQuestionState();
+    }
+  }, [currentQuestionIndex, currentView, userAnswers]); // Dependencies matter here
+
+  // ==========================================
+  // HANDLERS
+  // ==========================================
+
+  const handleConfirmBack = () => {
+    router.push('/');
+  };
+
+  const handleConfirmDev = () => {
+    handleDevAutoFill(); 
+    setShowDevModal(false);
+  };
+
+  const handleConfirmRestart = () => {
+    localStorage.removeItem('theocompass_quiz_progress');
+    setCurrentView("mode-select");
+    resetQuestionState();
+    setUserAnswers({});
+    setCurrentQuestionIndex(0);
+    setQuestions([]);
+    setShowRestartModal(false);
+  };
+
   const startInstructions = async (mode: "quick" | "standard" | "deep") => {
     setSelectedMode(mode);
     setCurrentView("instructions");
@@ -221,21 +260,21 @@ export default function QuizPage() {
     setSelectedAnswer(answerId);
     setIsSilenceSelected(false);
     setSilenceType(null);
-    setCertainty(2); // Default
-    setTolerance(2); // Default
+    setCertainty(2); 
+    setTolerance(2); 
   };
 
   const handleSilenceClick = (type: "apathetic" | "hostile") => {
-    setSelectedAnswer(`silence_${type}`); // Fake ID for state logic
+    setSelectedAnswer(`silence_${type}`); 
     setIsSilenceSelected(true);
     setSilenceType(type);
     
     if (type === "apathetic") {
-      setCertainty(0); // Not Sure
-      setTolerance(2); // Discerning
+      setCertainty(0); 
+      setTolerance(2); 
     } else if (type === "hostile") {
-      setCertainty(3); // Certain
-      setTolerance(1); // Opposed
+      setCertainty(3); 
+      setTolerance(1); 
     }
   };
 
@@ -245,7 +284,6 @@ export default function QuizPage() {
   };
 
   const handleNext = async () => {
-    // 1. Save the current answer
     const currentQ = questions[currentQuestionIndex];
     const newAnswers = { ...userAnswers };
     
@@ -260,20 +298,11 @@ export default function QuizPage() {
     
     setUserAnswers(newAnswers);
 
-    // 2. Check if we are at the end
     if (currentQuestionIndex < questions.length - 1) {
-      // Go to next question
       setCurrentQuestionIndex(currentQuestionIndex + 1);
-      
-      // Load previous state if it exists, otherwise reset
-      const nextQId = questions[currentQuestionIndex + 1].id;
-      if (newAnswers[nextQId]) {
-        restoreQuestionState(newAnswers[nextQId]);
-      } else {
-        resetQuestionState();
-      }
+      // UI sync handled by useEffect
     } else {
-      // WE ARE AT THE END! Time to calculate.
+      // END OF QUIZ
       setIsCalculating(true);
       setCurrentView("results");
       
@@ -286,14 +315,12 @@ export default function QuizPage() {
         
         const data = await res.json();
         
-      if (data.status === "success") {
-        setResults(data.matches); 
-        setUserCoords(data.userDimCoords || {});
-        setUserTolerance(data.userTolerance ?? 50);
-        setUserLabels(data.userLabels || []);
-      }
-
-         else {
+        if (data.status === "success") {
+          setResults(data.matches); 
+          setUserCoords(data.userDimCoords || {});
+          setUserTolerance(data.userTolerance ?? 50);
+          setUserLabels(data.userLabels || []);
+        } else {
           console.error("Calculation failed");
         }
       } catch (error) {
@@ -304,22 +331,12 @@ export default function QuizPage() {
     }
   };
 
-  // ==========================================
-  // DEV HELPER: Auto-fill and calculate
-  // ==========================================
   const handleDevAutoFill = async () => {
     const dummyAnswers: Record<string, UserResponse> = {};
-    
-    // Loop through all questions and pick a random answer 
     questions.forEach((q) => {
       const randomAnswerIndex = Math.floor(Math.random() * q.answers.length);
-      
-      // Generate a random certainty (0 to 3)
       const randomCertainty = Math.floor(Math.random() * 4);
-      
-      // Generate a random tolerance (0 to 4)
       const randomTolerance = Math.floor(Math.random() * 5);
-
       dummyAnswers[q.id] = {
         questionId: q.id,
         answerId: q.answers[randomAnswerIndex].id, 
@@ -329,15 +346,9 @@ export default function QuizPage() {
       };
     });
 
-
-    // Update state to hold the dummy answers
     setUserAnswers(dummyAnswers);
-    
-    // Switch UI directly to results
     setIsCalculating(true);
     setCurrentView("results");
-
-    console.log("DEV PAYLOAD:", dummyAnswers);
     
     try {
       const res = await fetch("http://127.0.0.1:8787/api/calculate", {
@@ -347,16 +358,13 @@ export default function QuizPage() {
       });
       
       const data = await res.json();
-      console.log("SERVER RESPONSE:", data);
       
       if (data.status === "success") {
         setResults(data.matches); 
         setUserCoords(data.userDimCoords || {});
         setUserTolerance(data.userTolerance || 50);
         setUserLabels(data.userLabels || []);
-      }
-
-       else {
+      } else {
         console.error("Calculation failed:", data.error);
       }
     } catch (error) {
@@ -369,8 +377,7 @@ export default function QuizPage() {
   const handleBack = () => {
     if (currentQuestionIndex > 0) {
       setCurrentQuestionIndex(currentQuestionIndex - 1);
-      const prevQId = questions[currentQuestionIndex - 1].id;
-      restoreQuestionState(userAnswers[prevQId]);
+      // UI sync handled by useEffect
     }
   };
 
@@ -392,22 +399,172 @@ export default function QuizPage() {
     setExpandedInfo(null);
   };
 
+  const handleDownloadImage = async () => {
+    if (!exportRef.current) return;
+    setIsExporting(true);
+    
+    try {
+      exportRef.current.style.position = 'static';
+      exportRef.current.style.left = 'auto';
+      
+      const canvas = await html2canvas(exportRef.current, {
+        scale: 2, 
+        useCORS: true,
+        backgroundColor: "#0f172a", 
+      });
+      
+      const dataURL = canvas.toDataURL("image/png");
+      const link = document.createElement("a");
+      link.download = "TheoCompass-Results.png";
+      link.href = dataURL;
+      link.click();
+    } catch (err) {
+      console.error("Failed to generate image", err);
+    } finally {
+      if (exportRef.current) {
+        exportRef.current.style.position = 'absolute';
+        exportRef.current.style.left = '-9999px';
+      }
+      setIsExporting(false);
+    }
+  };
+
+  // --- RENDER HELPERS ---
+  // Header component reused multiple times
+  const PageHeader = ({ showRestart = false }: { showRestart?: boolean }) => (
+    <header className="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm">
+      <div className="p-4 flex items-center justify-center relative border-b border-slate-100">
+        <button 
+          onClick={() => setShowBackModal(true)}
+          className="absolute left-4 flex items-center gap-2 cursor-pointer hover:opacity-80 transition"
+        >
+          <Image src="/logo.png" alt="TheoCompass Logo" width={40} height={40} className="object-contain" />
+        </button>
+        <button 
+          onClick={() => setShowBackModal(true)}
+          className="font-serif font-bold text-xl text-brand-primary tracking-tight cursor-pointer hover:opacity-80 transition"
+        >
+          TheoCompass
+        </button>
+        {showRestart && (
+          <button 
+            onClick={() => setShowRestartModal(true)}
+            className="absolute right-4 text-xs text-slate-400 hover:text-red-600 transition underline"
+          >
+            Restart
+          </button>
+        )}
+      </div>
+      <div className="px-4 py-2 bg-white">
+        <button 
+          onClick={() => setShowBackModal(true)}
+          className="flex items-center text-sm text-slate-600 hover:text-brand-primary transition font-medium"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Back to Main Page
+        </button>
+      </div>
+    </header>
+  );
+
+  // Modals component reused
+  const Modals = () => (
+    <>
+      {/* Back Modal */}
+      {showBackModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Leave Quiz?</h3>
+            <p className="text-slate-600 mb-6">Your progress is saved automatically. You can resume later.</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowBackModal(false)} className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-md transition">Cancel</button>
+              <button onClick={handleConfirmBack} className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition">Yes, go back</button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Dev Modal */}
+      {showDevModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Auto-Finish Quiz?</h3>
+            <p className="text-slate-600 mb-6">Are you sure? The results will be generated randomly.</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowDevModal(false)} className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-md transition">Cancel</button>
+              <button onClick={handleConfirmDev} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition">Yes, generate</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Restart Modal */}
+      {showRestartModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Restart Quiz?</h3>
+            <p className="text-slate-600 mb-6">This will delete your saved progress and start from the beginning.</p>
+            {/* SECRET CODE INPUT */}
+            <div className="mb-4 border-t pt-4 border-slate-100">
+              <input 
+                type="password" 
+                placeholder="Enter code..." 
+                value={devCode}
+                onChange={(e) => setDevCode(e.target.value)}
+                className="w-full text-xs border border-slate-200 rounded px-2 py-1 text-slate-400 focus:outline-none focus:border-slate-400"
+              />
+              
+              {/* IF CORRECT CODE, SHOW DEV BUTTON */}
+              {devCode === "mod" && (
+                <button 
+                  onClick={() => {
+                    setShowRestartModal(false);
+                    setShowDevModal(true); // Open the dev confirmation modal
+                  }}
+                  className="w-full mt-2 bg-purple-100 text-purple-700 text-xs font-bold py-1.5 rounded hover:bg-purple-200 transition"
+                >
+                  🚀 Unlock Dev Tools
+                </button>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => {
+                  setShowRestartModal(false);
+                  setDevCode(""); // Reset code on close
+                }}
+                className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-md transition"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleConfirmRestart}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition"
+              >
+                Restart
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
+
   // ==========================================
   // VIEW 1: MODE SELECT
   // ==========================================
   if (currentView === "mode-select") {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
-        <header className="bg-white border-b border-slate-200 p-4 shadow-sm flex items-center justify-center relative">
-          {/* Adjust src path to wherever your logo is stored in the public folder */}
-          <div className="absolute left-4 flex items-center gap-2">
-             <Image src="/logo.png" alt="TheoCompass Logo" width={32} height={32} className="object-contain" />
-          </div>
-          <Link href="/" className="font-serif font-bold text-blue-900 text-xl">TheoCompass</Link>
-        </header>
+        <PageHeader />
+        <Modals />
         <main className="flex-grow flex flex-col items-center justify-center p-6 max-w-4xl mx-auto">
           <h1 className="font-serif text-3xl md:text-5xl font-bold mb-4 text-center">Select Quiz Mode</h1>
-          <p className="text-slate-600 mb-10 text-center max-w-xl">Choose how deep you want to go into the theological landscape. The pre-demo version is currently limited to the Quick Match.</p>
+          <p className="text-slate-600 mb-10 text-center max-w-xl">Choose how deep you want to go. Progress is saved automatically.</p>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
             <button onClick={() => startInstructions("quick")} className="bg-white p-6 rounded-2xl border-2 border-blue-900 shadow-md hover:shadow-lg transition-all text-left group">
@@ -437,18 +594,13 @@ export default function QuizPage() {
   if (currentView === "instructions") {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
-        <header className="bg-white border-b border-slate-200 p-4 shadow-sm flex items-center justify-center relative">
-          {/* Adjust src path to wherever your logo is stored in the public folder */}
-          <div className="absolute left-4 flex items-center gap-2">
-             <Image src="/logo.png" alt="TheoCompass Logo" width={32} height={32} className="object-contain" />
-          </div>
-          <Link href="/" className="font-serif font-bold text-blue-900 text-xl">TheoCompass</Link>
-        </header>
+        <PageHeader />
+        <Modals />
         <main className="flex-grow p-6 max-w-2xl mx-auto w-full flex flex-col">
           <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm mt-8">
             <h1 className="font-serif text-3xl font-bold mb-6 text-blue-900">How to navigate the quiz</h1>
             <div className="space-y-6 text-slate-600 mb-8">
-              <p>TheoCompass measures not just <em>what</em> you believe, but <em>how</em> you hold those beliefs. For each question:</p>
+              <p>TheoCompass measures not just <em>what</em> you believe, but <em>how</em> you hold those beliefs.</p>
               
               <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
                 <h3 className="font-bold text-slate-800 mb-2">1. Select your Stance</h3>
@@ -457,21 +609,17 @@ export default function QuizPage() {
               
               <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
                 <h3 className="font-bold text-blue-700 mb-2">2. Set your Certainty</h3>
-                <p className="text-sm">How confident are you in this specific belief? (Not Sure → Certain)</p>
+                <p className="text-sm">How confident are you in this specific belief?</p>
               </div>
               
               <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
                 <h3 className="font-bold text-red-600 mb-2">3. Set your Tolerance</h3>
-                <p className="text-sm">What is your posture toward other Christians who disagree with you? Is it a "Salvation Issue", or are you "Accepting"?</p>
+                <p className="text-sm">What is your posture toward Christians who disagree with you?</p>
               </div>
 
               <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
                 <h3 className="font-bold text-slate-800 mb-2">4. Or, Choose Silence</h3>
                 <p className="text-sm mb-2">If a question does not fit your theology, you can bypass the sliders entirely:</p>
-                <ul className="text-sm space-y-2">
-                  <li><span className="font-medium text-slate-700">Apathetic Silence:</span> The topic isn't relevant to you. This creates a soft, neutral stance (low certainty, medium tolerance).</li>
-                  <li><span className="font-medium text-slate-700">Hostile Silence:</span> You fundamentally reject the question's premise. This creates a strong penalty against denominations that affirm it (high certainty, low tolerance).</li>
-                </ul>
               </div>
             </div>
 
@@ -632,7 +780,7 @@ export default function QuizPage() {
             <div className="w-16 h-px bg-slate-700 mx-auto my-4"></div>
             <div className="text-sm font-medium text-slate-400 mb-1">Built for informed decision, not persuasion.</div>
             <div className="text-base text-slate-500 font-mono mt-2">
-                theocompass.com • r/TheoCompass
+                theocompass.com • r/TheoCompass • © 2026 Oroq / TheoCompass Project
             </div>
           </div>
         </div>
@@ -641,12 +789,104 @@ export default function QuizPage() {
 
 
         {/* --- PAGE HEADER --- */}
-        <header className="bg-white border-b border-slate-200 p-4 shadow-sm flex items-center justify-center relative">
-          <div className="absolute left-4 flex items-center gap-2">
-             <Image src="/logo.png" alt="TheoCompass Logo" width={32} height={32} className="object-contain" />
+
+      
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm">
+
+        {/* RESTART MODAL (For Results Page) */}
+          {showRestartModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+              <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+                <h3 className="text-lg font-bold text-slate-900 mb-2">Retake Quiz?</h3>
+                <p className="text-slate-600 mb-4">This will clear your current results and start a new session.</p>
+                
+                {/* Optional: You can keep the secret code input here too if you want, 
+                    or remove it for the results page since the quiz is already done. */}
+                
+                <div className="flex justify-end gap-3">
+                  <button 
+                    onClick={() => setShowRestartModal(false)}
+                    className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-md transition"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleConfirmRestart}
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition"
+                  >
+                    Restart
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        
+        {/* ROW 1: Logo and Title (Centered) */}
+        <div className="p-4 flex items-center justify-center relative border-b border-slate-100">
+          
+          {/* Logo (Left) - Opens Modal */}
+          <button 
+            onClick={() => setShowBackModal(true)}
+            className="absolute left-4 flex items-center gap-2 cursor-pointer hover:opacity-80 transition"
+          >
+            <Image 
+              src="/logo.png" 
+              alt="TheoCompass Logo" 
+              width={40} 
+              height={40} 
+              className="object-contain" 
+            />
+          </button>
+
+          {/* Title (Center) - Opens Modal */}
+          <button 
+            onClick={() => setShowBackModal(true)}
+            className="font-serif font-bold text-xl text-brand-primary tracking-tight cursor-pointer hover:opacity-80 transition"
+          >
+            TheoCompass
+          </button>
+          
+        </div>
+
+        {/* ROW 2: Back Button Banner */}
+        <div className="px-4 py-2 bg-white">
+          <button 
+            onClick={() => setShowBackModal(true)}
+            className="flex items-center text-sm text-slate-600 hover:text-brand-primary transition font-medium"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back to Main Page
+          </button>
+        </div>
+        
+      </header>
+
+              {/* --- MODAL: Confirm Back / Home --- */}
+        {showBackModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+              <h3 className="text-lg font-bold text-slate-900 mb-2">Leave Quiz?</h3>
+              <p className="text-slate-600 mb-6">Are you sure you want to go back? Your current progress might be lost.</p>
+              <div className="flex justify-end gap-3">
+                <button 
+                  onClick={() => setShowBackModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-md transition"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleConfirmBack}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition"
+                >
+                  Yes, go back
+                </button>
+              </div>
+            </div>
           </div>
-          <Link href="/" className="font-serif font-bold text-blue-900 text-xl">TheoCompass</Link>
-        </header>
+        )}
+
 
         <main className="flex-grow p-4 md:p-8 max-w-4xl mx-auto w-full flex flex-col">
           {isCalculating ? (
@@ -818,7 +1058,10 @@ export default function QuizPage() {
                     <a href="https://ko-fi.com/oroq" target="_blank" rel="noreferrer" className="bg-[#FF5E5B] hover:bg-[#E55350] text-white py-2 px-6 rounded-full font-bold shadow transition-colors flex items-center gap-2">
                       Support on Ko-Fi
                     </a>
-                    <button onClick={() => window.location.reload()} className="bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 px-6 rounded-full font-bold transition-colors">
+                    <button 
+                      onClick={() => setShowRestartModal(true)} 
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 px-6 rounded-full font-bold transition-colors"
+                    >
                       Retake Quiz
                     </button>
                   </div>
@@ -853,47 +1096,115 @@ export default function QuizPage() {
 
 
   // ==========================================
-  // VIEW 3: THE ACTUAL QUIZ (Fallback View)
+  // VIEW 3: THE ACTUAL QUIZ
   // ==========================================
   if (!currentQuestion) return <div className="p-10 text-center">Error: No question data found.</div>;
 
-  return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm ">
-          <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
-             <Image src="/logo.png" alt="TheoCompass Logo" width={32} height={32} className="object-contain" />
-          </div>
-          <div className="max-w-3xl mx-auto px-4 py-3 flex justify-between items-center">
-            <Link href="/" className="font-serif font-bold text-blue-900 text-lg">TheoCompass</Link>
-            
-            {/* DEV BUTTON START */}
-            <button 
-              onClick={handleDevAutoFill} 
-              className="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded border border-red-300 hover:bg-red-200"
-            >
-              🐛 DEV: Auto-Finish
-            </button>
-            {/* DEV BUTTON END */}
+return (
+  <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
+    <PageHeader showRestart={true} />
+    
+      {/* --- ALL MODALS DEFINED DIRECTLY BELOW HEADER --- */}
 
-            <span className="text-sm font-bold text-slate-500 bg-slate-100 py-1 px-3 rounded-full">
-              Q {currentQuestionIndex + 1} of {totalQuestions}
-            </span>
+      {/* 1. Back Modal */}
+      {showBackModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Leave Quiz?</h3>
+            <p className="text-slate-600 mb-6">Your progress is saved automatically. You can resume later.</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowBackModal(false)} className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-md transition">Cancel</button>
+              <button onClick={handleConfirmBack} className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition">Yes, go back</button>
+            </div>
           </div>
-        <div className="w-full h-1.5 bg-slate-100">
-          <div className="h-full bg-blue-600 transition-all duration-500 ease-out" style={{ width: `${progressPercentage}%` }}></div>
         </div>
-      </header>
+      )}
+
+      {/* 2. Dev Modal (The one that wasn't showing) */}
+      {showDevModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Auto-Finish Quiz?</h3>
+            <p className="text-slate-600 mb-6">Are you sure? The results will be generated randomly.</p>
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => setShowDevModal(false)} 
+                className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-md transition"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleConfirmDev} 
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition"
+              >
+                Yes, generate
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Restart Modal (With Secret Code) */}
+      {showRestartModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Restart Quiz?</h3>
+            <p className="text-slate-600 mb-4">This will delete your saved progress.</p>
+            
+            {/* Secret Code Input */}
+            <div className="mb-4 border-t pt-4 border-slate-100">
+              <input 
+                type="password" 
+                placeholder="Enter code..." 
+                value={devCode}
+                onChange={(e) => setDevCode(e.target.value)}
+                className="w-full text-xs border border-slate-200 rounded px-2 py-1 text-slate-400 focus:outline-none focus:border-slate-400"
+              />
+              
+              {devCode === "mod" && (
+                <button 
+                  onClick={() => {
+                    setShowRestartModal(false);
+                    setShowDevModal(true); // This opens Modal #2 above
+                    setDevCode("");
+                  }}
+                  className="w-full mt-2 bg-purple-100 text-purple-700 text-xs font-bold py-1.5 rounded hover:bg-purple-200 transition"
+                >
+                  🚀 Unlock Dev Tools
+                </button>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => {
+                  setShowRestartModal(false);
+                  setDevCode("");
+                }}
+                className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-md transition"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleConfirmRestart}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition"
+              >
+                Restart
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="flex-grow w-full max-w-2xl mx-auto px-4 py-8 md:py-12 flex flex-col">
         <div className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-3">
-          {/* UPDATED: Lookup the full name, fallback to the raw code if not found */}
           Category: {QUIZ_CATEGORY_LABELS[currentQuestion.category] || currentQuestion.category}
         </div>
         <h1 className="font-serif text-2xl md:text-3xl font-bold text-slate-900 mb-8 leading-snug">
           {currentQuestion.question}
         </h1>
 
-        {/* --- STANDARD ANSWERS --- */}
+        {/* ANSWERS */}
         <div className="flex flex-col gap-3 mb-6">
           {currentQuestion.answers.map((ans) => {
             const isSelected = selectedAnswer === ans.id;
@@ -926,7 +1237,7 @@ export default function QuizPage() {
           })}
         </div>
 
-        {/* --- SILENCE OPTIONS --- */}
+        {/* SILENCE OPTIONS */}
         <div className="flex flex-col sm:flex-row gap-3 mb-10">
           <button 
             onClick={() => handleSilenceClick("apathetic")}
@@ -935,9 +1246,7 @@ export default function QuizPage() {
             }`}
           >
             Apathetic Silence
-            <span className="block text-xs font-normal opacity-70 mt-1">Not theologically relevant to me.</span>
           </button>
-
           <button 
             onClick={() => handleSilenceClick("hostile")}
             className={`flex-1 p-3 rounded-lg border text-sm font-medium transition-all ${
@@ -945,11 +1254,10 @@ export default function QuizPage() {
             }`}
           >
             Hostile Silence
-            <span className="block text-xs font-normal opacity-70 mt-1">I reject this question's framing.</span>
           </button>
         </div>
 
-        {/* --- CERTAINTY / TOLERANCE SLIDERS --- */}
+        {/* SLIDERS */}
         {selectedAnswer && !isSilenceSelected && (
           <div className="bg-white p-6 md:p-8 rounded-xl border border-slate-200 shadow-sm mb-8 animate-fade-in-up">
             <div className="mb-10">
@@ -959,26 +1267,21 @@ export default function QuizPage() {
                 <span className={`font-bold ${certaintyTextColors[certainty]}`}>{certaintyLabels[certainty]}</span>
               </div>
               <input type="range" min="0" max="3" step="1" value={certainty} onChange={(e) => setCertainty(Number(e.target.value))} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
-              <div className="flex justify-between text-xs text-slate-400 mt-2 px-1"><span>Not Sure</span><span>Leaning</span><span>Pretty Sure</span><span>Certain</span></div>
             </div>
             <div>
-              <p className="text-sm text-slate-500 italic mb-3">{hasPrimaryKeyword ? "What posture do you have toward Christians who disagree that your view should be primary?" : "What posture do you have toward Christians who disagree with you?"}</p>
+              <p className="text-sm text-slate-500 italic mb-3">What posture do you have toward Christians who disagree?</p>
               <div className="flex justify-between text-sm mb-2 font-medium">
                 <span className="text-slate-800 font-bold">Tolerance</span>
                 <span className={`font-bold ${
-                  tolerance === 0 ? "text-red-600" : 
-                  tolerance === 1 ? "text-orange-500" : 
-                  tolerance === 2 ? "text-yellow-600" : 
-                  tolerance === 3 ? "text-green-500" : "text-emerald-600"
+                  tolerance === 0 ? "text-red-600" : tolerance === 1 ? "text-orange-500" : tolerance === 2 ? "text-yellow-600" : tolerance === 3 ? "text-green-500" : "text-emerald-600"
                 }`}>{toleranceLabels[tolerance]}</span>
               </div>
               <input type="range" min="0" max="4" step="1" value={tolerance} onChange={(e) => setTolerance(Number(e.target.value))} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer" />
-              <div className="flex justify-between text-xs text-slate-400 mt-2 px-1"><span>Issue</span><span>Opposed</span><span>Discern</span><span>Charity</span><span>Accept</span></div>
             </div>
           </div>
         )}
 
-        {/* --- NAVIGATION FOOTER --- */}
+        {/* NAV FOOTER */}
         <div className="mt-auto pt-4 pb-8 flex justify-between items-center border-t border-slate-200">
           <button onClick={handleBack} className={`font-bold text-slate-500 hover:text-blue-700 transition-colors ${currentQuestionIndex === 0 ? "invisible" : ""}`}>← Back</button>
           <button 
