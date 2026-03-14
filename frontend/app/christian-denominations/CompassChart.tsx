@@ -80,9 +80,10 @@ const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
 interface CompassProps {
   userCoords: Record<string, number>;
   userTolerance: number;
+  isExport?: boolean;  // NEW: detect PNG mode
 }
 
-export default function CompassChart({ userCoords, userTolerance }: CompassProps) {
+export default function CompassChart({ userCoords, userTolerance, isExport = false }: CompassProps) {
   const [chartData, setChartData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -181,14 +182,18 @@ export default function CompassChart({ userCoords, userTolerance }: CompassProps
 
   if (loading) return <div className="p-10 text-center text-slate-500 animate-pulse">Loading Theological Landscape...</div>;
 
-  return (
-    <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-200 shadow-sm mt-8">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-        <div>
-          <h3 className="font-serif text-2xl font-bold text-slate-800">Theological Compass</h3>
-          <p className="text-sm text-slate-500">Explore traditions across different dimensions.</p>
-        </div>
-        
+return (
+  <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-200 shadow-sm mt-8">
+    {/* HEADER + CONTROLS — Dual mode for live/export */}
+    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+      <div>
+        <h3 className="font-serif text-2xl font-bold text-slate-800">Your Theological Compass</h3>
+        <p className="text-sm text-slate-500">A visual projection of your theological coordinates relative to major traditions, across different dimensions.</p>
+      </div>
+      
+      {/* AXIS CONTROLS */}
+      {!isExport ? (
+        // LIVE PAGE: Interactive dropdowns (your current code)
         <div className="flex flex-col gap-2 w-full md:w-auto">
           <div className="flex items-center gap-2 text-sm">
             <span className="font-bold text-slate-700 w-12">Y-Axis</span>
@@ -197,7 +202,9 @@ export default function CompassChart({ userCoords, userTolerance }: CompassProps
               value={yAxis}
               onChange={(e) => setYAxis(e.target.value)}
             >
-              {AXIS_OPTIONS.map(opt => <option key={opt.key} value={opt.key}>{opt.label}</option>)}
+              {AXIS_OPTIONS.map(opt => (
+                <option key={opt.key} value={opt.key}>{opt.label}</option>
+              ))}
             </select>
           </div>
           <div className="flex items-center gap-2 text-sm">
@@ -207,11 +214,30 @@ export default function CompassChart({ userCoords, userTolerance }: CompassProps
               value={xAxis}
               onChange={(e) => setXAxis(e.target.value)}
             >
-              {AXIS_OPTIONS.map(opt => <option key={opt.key} value={opt.key}>{opt.label}</option>)}
+              {AXIS_OPTIONS.map(opt => (
+                <option key={opt.key} value={opt.key}>{opt.label}</option>
+              ))}
             </select>
           </div>
         </div>
-      </div>
+      ) : (
+        // PNG EXPORT: Static text (no cutoff, perfect rendering)
+        <div className="flex flex-col gap-3 w-full md:w-auto">
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-slate-700 text-sm w-20">Y-Axis:</span>
+            <span className="font-semibold text-slate-900 px-4 py-2.5 bg-white border-2 border-slate-400 rounded-lg shadow-md text-sm max-w-[280px] truncate bg-gradient-to-r from-slate-50 to-white">
+              {AXIS_OPTIONS.find(o => o.key === yAxis)?.label || 'Loading...'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-slate-700 text-sm w-20">X-Axis:</span>
+            <span className="font-semibold text-slate-900 px-4 py-2.5 bg-white border-2 border-slate-400 rounded-lg shadow-md text-sm max-w-[280px] truncate bg-gradient-to-r from-slate-50 to-white">
+              {AXIS_OPTIONS.find(o => o.key === xAxis)?.label || 'Loading...'}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
 
       <div className="h-[400px] md:h-[500px] w-full border border-slate-100 rounded-lg overflow-hidden bg-slate-50 relative">
         <ResponsiveContainer width="100%" height="100%">

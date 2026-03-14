@@ -457,55 +457,111 @@ async function handleCalculate(request: Request, env: Env, corsHeaders: Record<s
       userDimCoords[dim] = dimTotalWeight > 0 ? Number((dimWeightedSum / dimTotalWeight).toFixed(1)) : 50;
     });
 
-    // 2. Calculate the 13th Axis: Tolerance Score
-    let tolWeightedSum = 0;
-    let tolTotalWeight = 0;
-    
-    console.log("--- STARTING TOLERANCE CALC ---");
-    
+// 2. Calculate the 13th Axis: Tolerance Score
+let tolWeightedSum = 0;
+let tolTotalWeight = 0;
+
+console.log("--- STARTING TOLERANCE CALC ---");
+
 userAnswersArray.forEach(userAns => {
-    const uPosture = getPosture(userAns.isSilence, userAns.silenceType);
-    
-    // REMOVED: if (uPosture !== 'affirmed') return;
+  const uPosture = getPosture(userAns.isSilence, userAns.silenceType);
+  if (uPosture !== 'affirmed') return;
 
-    // Use the exact same forced logic here for the tolerance average
-    let cVal = Number(userAns.certainty ?? 2);
-    let tVal = Number(userAns.tolerance ?? 2);
-    
-    if (uPosture === 'apathetic') {
-        cVal = 0;
-        tVal = 2;
-    } else if (uPosture === 'hostile') {
-        cVal = 3;
-        tVal = 1;
-    }
+  const cVal = Number(userAns.certainty ?? 2);
+  const tVal = Number(userAns.tolerance ?? 2);
 
-    const severityMultiplier = 1 + Math.pow(Math.abs(tVal - 2), 1.5);
-    const wT = (1 + cVal) * severityMultiplier;
+  const severityMultiplier = 1 + Math.pow(Math.abs(tVal - 2), 1.5);
+  const wT = (1 + cVal) * severityMultiplier;
 
-    tolWeightedSum += (tVal * wT);
-    tolTotalWeight += wT;
+  console.log(`QID: ${userAns.questionId} | C: ${cVal} | T: ${tVal} | wT: ${wT.toFixed(2)}`);
+
+  tolWeightedSum += (tVal * wT);
+  tolTotalWeight += wT;
 });
 
+let userTolerance = 50;
+if (tolTotalWeight > 0) {
+  const averageTValue = tolWeightedSum / tolTotalWeight;
+  userTolerance = Number((averageTValue * 25).toFixed(1));
+  console.log(`FINAL TOLERANCE -> Sum: ${tolWeightedSum.toFixed(2)} | Weight: ${tolTotalWeight.toFixed(2)} | Score: ${userTolerance}`);
+}
 
-    let userTolerance = 50;
-    if (tolTotalWeight > 0) {
-        const averageTValue = tolWeightedSum / tolTotalWeight;
-        userTolerance = Number((averageTValue * 25).toFixed(1));
+// ==========================================
+// 3. GENERATE USER THEOLOGICAL LABELS
+// ==========================================
+console.log("=== GENERATING USER LABELS ===");
+const theologicalLabels: any[] = [];
+
+const affirmedAnswers = userAnswersArray.filter(ans => !ans.isSilence);
+console.log("Affirmed answers count:", affirmedAnswers.length);
+
+if (affirmedAnswers.length === 0) {
+  console.log("No affirmed answers - no labels generated");
+} else {
+  const userAnswerIds = affirmedAnswers.map(ans => ans.answerId);
+  console.log("Fetching labels for first 3 answer IDs:", userAnswerIds.slice(0, 3));
+
+  // Query answer_options for labels and descriptions
+  const labelRes = await env.DB.prepare(`
+    SELECT id, theological_label, description 
+    FROM answer_options 
+    WHERE id IN (${userAnswerIds.map(() => '?').join(',')})
+  `).bind(...userAnswerIds).all();
+
+  console.log("Label query returned:", labelRes.results.length, "rows");
+
+  const labelMap: Record<string, { label: string, desc: string }> = {};
+  labelRes.results.forEach((row: any) => {
+    const label = row.theological_label?.trim();
+    if (label && label !== "N/A") {
+      labelMap[row.id] = { label, desc: row.description || "" };
     }
-    
-    console.log(`FINAL TOLERANCE -> Sum: ${tolWeightedSum.toFixed(2)} | Weight: ${tolTotalWeight.toFixed(2)} | Score: ${userTolerance}`);
+  });
+
+  // Build final labels array
+  affirmedAnswers.forEach(userAns => {
+    const data = labelMap[userAns.answerId];
+    if (data) {
+      theologicalLabels.push({
+        label: data.label,
+        desc: data.desc,
+        category: qMap[userAns.questionId]?.categorycode || "GEN",
+        certainty: Number(userAns.certainty ?? 2),
+        tolerance: Number(userAns.tolerance ?? 2),
+        questionId: userAns.questionId
+      });
+    }
+  });
 
 
+  console.log("Valid labels found:", Object.keys(labelMap).length);
 
+  // Build final labels array
+  affirmedAnswers.forEach(userAns => {
+    const label = labelMap[userAns.answerId];
+    if (label) {
+      theologicalLabels.push({
+        label,
+        category: qMap[userAns.questionId]?.categorycode || "GEN",
+        certainty: Number(userAns.certainty ?? 2),
+        tolerance: Number(userAns.tolerance ?? 2),
+        questionId: userAns.questionId
+      });
+    }
+  });
+  
+  console.log("Final theologicalLabels count:", theologicalLabels.length);
+}
 
-    // 3. Return the expanded response
-    return new Response(JSON.stringify({ 
-      status: "success", 
-      matches: topMatches,
-      userDimCoords: userDimCoords,
-      userTolerance: userTolerance
-    }), { status: 200, headers: corsHeaders });
+// 4. Return the response
+return new Response(JSON.stringify({
+  status: "success",
+  matches: topMatches,
+  userDimCoords: userDimCoords,
+  userTolerance: userTolerance,
+  userLabels: theologicalLabels
+}), { status: 200, headers: corsHeaders });
+
 
 
   } catch (error: any) {
