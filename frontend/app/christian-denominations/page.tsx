@@ -158,14 +158,11 @@ export default function QuizPage() {
   const certaintyTextColors = ["text-slate-400", "text-sky-500", "text-blue-600", "text-brand-dark"];
   const toleranceLabels = ["Salvation Issue", "Opposed", "Discerning", "Charitable", "Accepting"];
 
-  // ==========================================
-  // LOCAL STORAGE LOGIC
-  // ==========================================
+  // --- LOCAL STORAGE LOGIC ---
 
-  // 1. LOAD PROGRESS OR RESULTS ON MOUNT
+  // 1. INITIAL LOAD (Runs once on mount)
   useEffect(() => {
-    // ---> ADD THIS NEW CODE HERE <---
-    // Check if they already finished the quiz
+    // Check for completed results first
     const savedResults = localStorage.getItem('theocompass_final_results');
     if (savedResults) {
       try {
@@ -174,36 +171,37 @@ export default function QuizPage() {
         setUserCoords(data.userDimCoords);
         setUserTolerance(data.userTolerance);
         setUserLabels(data.userLabels);
-        setCurrentView("results"); // Jump straight to results dashboard!
+        setCurrentView("results");
         setIsLoaded(true);
-        return; // Exit early so we don't load the quiz progress
+        return; // Exit early, we are done!
       } catch (e) {
         console.error("Failed to load saved results", e);
       }
     }
-    // ---> END OF NEW CODE <---
+
+    // If no results, check for quiz progress
     const savedData = localStorage.getItem('theocompass_quiz_progress');
     if (savedData) {
       try {
         const data = JSON.parse(savedData);
-        // Only restore if we have valid data
         if (data.questions && data.questions.length > 0) {
           setQuestions(data.questions);
-          setUserAnswers(data.userAnswers || {});
+          setUserAnswers(data.userAnswers);
           setCurrentQuestionIndex(data.currentQuestionIndex || 0);
           setSelectedMode(data.selectedMode || null);
-          setCurrentView("quiz"); // Jump straight to quiz
+          setCurrentView("quiz");
         }
       } catch (e) {
         console.error("Failed to load saved progress", e);
       }
     }
+    
     setIsLoaded(true);
-  }, []);
+  }, []); // Empty dependency array = runs ONCE on mount
 
-  // 2. SAVE PROGRESS ON CHANGE
+
+  // 2. SAVE QUIZ PROGRESS (Runs when quiz data changes)
   useEffect(() => {
-    // Only save if component is loaded and we are in quiz mode
     if (isLoaded && currentView === "quiz" && questions.length > 0) {
       const dataToSave = {
         questions,
@@ -212,11 +210,6 @@ export default function QuizPage() {
         selectedMode
       };
       localStorage.setItem('theocompass_quiz_progress', JSON.stringify(dataToSave));
-    }
-    
-    // 3. CLEAR PROGRESS ON RESULTS
-    if (currentView === "results") {
-      localStorage.removeItem('theocompass_quiz_progress');
     }
   }, [isLoaded, currentView, questions, userAnswers, currentQuestionIndex, selectedMode]);
 
@@ -353,6 +346,8 @@ export default function QuizPage() {
              userLabels: data.userLabels,
              timestamp: new Date().getTime() // Optional versioning
           }));
+
+          localStorage.removeItem('theocompass_quiz_progress');
           // ---> END OF NEW CODE <---
 
         } else {
