@@ -39,7 +39,7 @@ const AXIS_LABELS: Record<string, { left: string, right: string, desc: string }>
   supernat: { left: "Naturalistic", right: "Supernatural", desc: "Expectation of miracles and spiritual forces" },
   cultsepeng: { left: "Engaged", right: "Separatist", desc: "Approach to worldly institutions and politics" },
   clericegal: { left: "Egalitarian", right: "Hierarchical", desc: "Church governance and ordination" },
-  divhumagency: { left: "Human Free Will", right: "Divine Sovereignty", desc: "The mechanics of salvation (Arminian/Calvinist)" },
+  divhumagency: { left: "Human Agency", right: "Divine Sovereignty", desc: "The mechanics of salvation (Arminian/Calvinist)" },
   communindiv: { left: "Individualist", right: "Communitarian", desc: "Focus of faith and church life" },
   liturgspont: { left: "Spontaneous", right: "Liturgical", desc: "Style and structure of worship" },
   sacramfunct: { left: "Functional/Symbolic", right: "Sacramental", desc: "Efficacy of Baptism and Communion" },

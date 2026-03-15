@@ -14,7 +14,7 @@ const AXIS_OPTIONS = [
   { key: "super_nat_avg", label: "Worldview: Naturalistic ↔ Supernatural", minLabel: "Naturalistic", maxLabel: "Supernatural" },
   { key: "cult_sep_eng_avg", label: "Politics: Engaged ↔ Separatist", minLabel: "Engaged", maxLabel: "Separatist" },
   { key: "cleric_egal_avg", label: "Authority: Egalitarian ↔ Hierarchical", minLabel: "Egalitarian", maxLabel: "Hierarchical" },
-  { key: "div_hum_agency_avg", label: "Salvation: Human Free Will ↔ Divine Sovereignty", minLabel: "Free Will", maxLabel: "Sovereignty" },
+  { key: "div_hum_agency_avg", label: "Salvation: Human Agency ↔ Divine Sovereignty", minLabel: "Human Agency", maxLabel: "Sovereignty" },
   { key: "commun_indiv_avg", label: "Focus: Individualist ↔ Communitarian", minLabel: "Individualist", maxLabel: "Communitarian" },
   { key: "liturg_spont_avg", label: "Worship: Spontaneous ↔ Liturgical", minLabel: "Spontaneous", maxLabel: "Liturgical" },
   { key: "sacram_funct_avg", label: "Sacraments: Symbolic ↔ Sacramental", minLabel: "Symbolic", maxLabel: "Sacramental" },
@@ -241,8 +241,8 @@ return (
       )}
     </div>
 
-      <div className="h-[600px] md:h-[500px] w-full border border-slate-100 rounded-lg overflow-hidden bg-slate-50 relative">
-        <ResponsiveContainer width="100%" height="100%">
+      <div className="w-full border border-slate-100 rounded-lg overflow-hidden bg-slate-50 relative">
+        <ResponsiveContainer width="100%" aspect={1} minHeight={400}>
           <ScatterChart margin={{ top: 40, right: 30, bottom: 30, left: 40 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
             
@@ -286,7 +286,7 @@ return (
         {xObj && yObj && (
           <>
             {/* X-Axis labels */}
-            <div className="absolute bottom-2 left-20 text-xs font-bold text-slate-500 uppercase tracking-wide bg-white/70 px-1 rounded">
+            <div className="absolute bottom-2 left-16 text-xs font-bold text-slate-500 uppercase tracking-wide bg-white/70 px-1 rounded">
               ← {xObj.minLabel}
             </div>
             <div className="absolute bottom-2 right-4 text-xs font-bold text-slate-500 uppercase tracking-wide bg-white/70 px-1 rounded">
