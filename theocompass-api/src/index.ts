@@ -20,9 +20,11 @@ export default {
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Headers": "Content-Type, X-Compute-Time-ms, X-D1-Rows-Read, X-D1-Query-Time-ms",
+      "Access-Control-Expose-Headers": "X-Compute-Time-ms, X-D1-Rows-Read, X-D1-Query-Time-ms",
       "Content-Type": "application/json",
     };
+
 
     // Handle CORS preflight requests
     if (request.method === "OPTIONS") {
@@ -185,6 +187,7 @@ export default {
 // =====================================================================
 async function handleCalculate(request: Request, env: Env, corsHeaders: Record<string, string>): Promise<Response> {
   try {
+    const startTime = performance.now(); // <-- ADD THIS LINE
     const payload = await request.json<Record<string, UserResponse>>();
     const userAnswersArray = Object.values(payload);
 
@@ -217,6 +220,11 @@ async function handleCalculate(request: Request, env: Env, corsHeaders: Record<s
       env.DB.prepare(`SELECT * FROM hidden_dimensions WHERE question_id IN (${placeholders})`).bind(...questionIds),
       env.DB.prepare(`SELECT * FROM questions WHERE id IN (${placeholders})`).bind(...questionIds)
     ]);
+
+    // ADD THIS BLOCK TO SUM THE D1 METRICS:
+    const allDbResponses = [denomsRes, denomAnswersRes, scoringRes, dimensionsRes, questionsRes];
+    const totalRowsRead = allDbResponses.reduce((sum, res) => sum + (res.meta?.rows_read || 0), 0);
+    const totalQueryTimeMs = allDbResponses.reduce((sum, res) => sum + (res.meta?.duration || 0), 0);
 
     // --- BULLETPROOF DATA NORMALIZATION ---
     const normalizeRow = (row: any) => {
@@ -553,18 +561,33 @@ if (affirmedAnswers.length === 0) {
   console.log("Final theologicalLabels count:", theologicalLabels.length);
 }
 
-// 4. Return the response
-return new Response(JSON.stringify({
-  status: "success",
-  matches: topMatches,
-  userDimCoords: userDimCoords,
-  userTolerance: userTolerance,
-  userLabels: theologicalLabels
-}), { status: 200, headers: corsHeaders });
+    // 4. Return the response
+    const endTime = performance.now();
+    const computeTimeMs = (endTime - startTime).toFixed(2);
+    
+    console.log(`[Metrics] Math CPU Time: ${computeTimeMs}ms | D1 Rows Read: ${totalRowsRead} | D1 Query Time: ${totalQueryTimeMs}ms`);
 
+    // Merge the custom metrics into your existing corsHeaders for this specific response
+    const responseHeaders = {
+      ...corsHeaders,
+      "X-Compute-Time-ms": computeTimeMs.toString(),
+      "X-D1-Rows-Read": totalRowsRead.toString(),
+      "X-D1-Query-Time-ms": totalQueryTimeMs.toString()
+    };
 
+    return new Response(JSON.stringify({
+      status: "success",
+      matches: topMatches,
+      userDimCoords: userDimCoords,
+      userTolerance: userTolerance,
+      userLabels: theologicalLabels
+    }), {
+      status: 200,
+      headers: responseHeaders // Use the new merged headers here
+    });
 
   } catch (error: any) {
+
     console.error("CALCULATION ERROR:", error);
     return new Response(JSON.stringify({ error: "Failed to process calculate request", details: error.message }), { status: 500, headers: corsHeaders });
   }
