@@ -182,8 +182,8 @@ export default function TheologicalLabelCloud({ userLabels, className = "" }: Th
                   >
                     <div className={`
                       rounded-full transition-all duration-300 ease-out text-center leading-tight 
-                      ${CERTAINTY_SIZES[labelObj.certainty || 0]} 
-                      ${TOLERANCE_STYLES[labelObj.tolerance || 2]} 
+                      ${CERTAINTY_SIZES[labelObj.certainty ?? 0]} 
+                      ${TOLERANCE_STYLES[labelObj.tolerance ?? 2]} 
                       ${hoveredLabel === actualLabelText ? 'scale-105 shadow-md -translate-y-0.5' : ''} 
                       ${hoveredLabel && hoveredLabel !== actualLabelText ? 'opacity-40 grayscale' : 'opacity-100'}
                     `}>
