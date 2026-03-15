@@ -29,6 +29,25 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} ${merriweather.variable}`}>
+      <head>
+        {/* Google Analytics - Pre-Demo Tracking */}
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-4S4RJ1Y66Z" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', 'G-4S4RJ1Y66Z');
+            `,
+          }}
+        />
+        
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" href="/icon.png" type="image/png" sizes="any" />
+        <title>TheoCompass - Theological Alignment Quiz</title>
+        <meta name="description" content="Discover your theological alignment across 13 doctrinal dimensions. Built for informed decision, not persuasion." />
+      </head>
       <body className="font-sans antialiased">
         {children}
       </body>

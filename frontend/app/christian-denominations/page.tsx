@@ -321,6 +321,20 @@ export default function QuizPage() {
       setIsCalculating(true);
       setCurrentView("results");
 
+      // Track quiz completion (add to handleNext after setCurrentView('results'))
+      gtag('event', 'quiz_complete', {
+        quiz_mode: selectedMode, // 'quick'
+        questions_answered: Object.keys(userAnswers).length,
+        top_match: results[0]?.name || 'unknown',
+        top_match_score: results[0]?.matchPercentage || 0
+      });
+
+      // Track image download (add to handleDownloadImage)
+      gtag('event', 'download_results_image', {
+        top_match: results[0]?.name,
+        top_match_score: results[0]?.matchPercentage
+      });
+
       const apiUrl = process.env.NEXT_PUBLIC_API_URL!;
       try {
         const res = await fetch(`${apiUrl}/api/calculate`, {
