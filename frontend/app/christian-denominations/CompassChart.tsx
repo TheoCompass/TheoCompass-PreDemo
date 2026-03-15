@@ -94,7 +94,9 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
     async function fetchLandscape() {
       try {
         // 1. Fetch coordinates + joined metadata directly from your Cloudflare Worker SQL
-        const coordRes = await fetch("http://127.0.0.1:8787/api/coordinates");
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+        const coordRes = await fetch(`${apiUrl}/api/coordinates`);
+
         const rawCoords = await coordRes.json();
         
         // 2. Map the DB results into Recharts format

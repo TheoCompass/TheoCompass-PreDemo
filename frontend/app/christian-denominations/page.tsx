@@ -241,7 +241,10 @@ export default function QuizPage() {
     setError(null);
     
     try {
-      const response = await fetch(`http://127.0.0.1:8787/api/questions?mode=${mode}`);
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+      const response = await fetch(`${apiUrl}/api/questions?mode=${mode}`);
+
+
       if (!response.ok) throw new Error("Failed to fetch questions");
       
       const data = await response.json();
@@ -307,7 +310,7 @@ export default function QuizPage() {
       setCurrentView("results");
       
       try {
-        const res = await fetch("http://127.0.0.1:8787/api/calculate", {
+        const res = await fetch(`${apiUrl}/api/calculate`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(newAnswers)
@@ -351,7 +354,7 @@ export default function QuizPage() {
     setCurrentView("results");
     
     try {
-      const res = await fetch("http://127.0.0.1:8787/api/calculate", {
+      const res = await fetch(`${apiUrl}/api/calculate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(dummyAnswers)
