@@ -158,7 +158,20 @@ export default function QuizPage() {
   // Helper arrays
   const certaintyLabels = ["Not Sure", "Leaning", "Pretty Sure", "Certain"];
   const certaintyTextColors = ["text-slate-400", "text-sky-500", "text-blue-600", "text-brand-dark"];
-  const toleranceLabels = ["Salvation Issue", "Opposed", "Discerning", "Charitable", "Accepting"];
+  const toleranceLabels = [
+    "None Valid (Core Dogma)",
+    "None for Fellowship (Primary)",
+    "A Few Valid (Secondary)",
+    "Most Valid (Tertiary)",
+    "All Valid (Open)"
+  ];
+  const toleranceDescriptions = [
+    "No other option is valid; this is required for the Christian faith.",
+    "No other option is valid for church fellowship, but some alternatives are still Christian.",
+    "A few other options are valid, but require theological discernment.",
+    "Most other options are valid, representing faithful in-house debate.",
+    "Every other option is valid; this is purely personal preference."
+  ];
 
   // --- LOCAL STORAGE LOGIC ---
 
@@ -691,8 +704,10 @@ export default function QuizPage() {
               </div>
               
               <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
-                <h3 className="font-bold text-red-600 mb-2">3. Set your Tolerance</h3>
-                <p className="text-sm">What is your posture toward other Christians who disagree with you? Is it a "Salvation Issue", or are you "Accepting"?</p>
+                <h3 className="font-bold text-red-600 mb-2">3. Set Tolerance</h3>
+                <p className="text-sm">
+                  How exclusive is your stance? Are none of the other options valid (Core Dogma), or are they all acceptable (Open)?
+                </p>
               </div>
 
               <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
@@ -1359,34 +1374,72 @@ return (
           </button>
         </div>
 
-         {/* --- CERTAINTY / TOLERANCE SLIDERS --- */}
+        {/* --- CERTAINTY / TOLERANCE SLIDERS --- */}
         {selectedAnswer && !isSilenceSelected && (
           <div className="bg-white p-6 md:p-8 rounded-xl border border-slate-200 shadow-sm mb-8 animate-fade-in-up">
+            
+            {/* Certainty Slider (Unchanged) */}
             <div className="mb-10">
               <p className="text-sm text-slate-500 italic mb-3">How confident are you in this particular stance?</p>
               <div className="flex justify-between text-sm mb-2 font-medium">
                 <span className="text-slate-800 font-bold">Certainty</span>
                 <span className={`font-bold ${certaintyTextColors[certainty]}`}>{certaintyLabels[certainty]}</span>
               </div>
-              <input type="range" min="0" max="3" step="1" value={certainty} onChange={(e) => setCertainty(Number(e.target.value))} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
-              <div className="flex justify-between text-xs text-slate-400 mt-2 px-1"><span>Not Sure</span><span>Leaning</span><span>Pretty Sure</span><span>Certain</span></div>
-            </div>
-            <div>
-              <p className="text-sm text-slate-500 italic mb-3">{hasPrimaryKeyword ? "What posture do you have toward Christians who disagree that your view should be primary?" : "What posture do you have toward Christians who disagree with you?"}</p>
-              <div className="flex justify-between text-sm mb-2 font-medium">
-                <span className="text-slate-800 font-bold">Tolerance</span>
-                <span className={`font-bold ${
-                  tolerance === 0 ? "text-red-600" : 
-                  tolerance === 1 ? "text-orange-500" : 
-                  tolerance === 2 ? "text-yellow-600" : 
-                  tolerance === 3 ? "text-green-500" : "text-emerald-600"
-                }`}>{toleranceLabels[tolerance]}</span>
+              <input 
+                type="range" min="0" max="3" step="1" 
+                value={certainty} 
+                onChange={(e) => setCertainty(Number(e.target.value))} 
+                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" 
+              />
+              <div className="flex justify-between text-xs text-slate-400 mt-2 px-1">
+                <span>Not Sure</span><span>Leaning</span><span>Pretty Sure</span><span>Certain</span>
               </div>
-              <input type="range" min="0" max="4" step="1" value={tolerance} onChange={(e) => setTolerance(Number(e.target.value))} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer" />
-              <div className="flex justify-between text-xs text-slate-400 mt-2 px-1"><span>Issue</span><span>Opposed</span><span>Discern</span><span>Charity</span><span>Accept</span></div>
+            </div>
+            
+            {/* Tolerance Slider */}
+            <div>
+              <p className="text-sm text-slate-500 italic mb-3">
+                {hasPrimaryKeyword 
+                  ? "How many of the other options are acceptable alternatives to your primary view?" 
+                  : "How many of the other options listed do you consider valid?"}
+              </p>
+              
+              <div className="flex flex-col mb-3">
+                <div className="flex justify-between text-sm mb-1 font-medium">
+                  <span className="text-slate-800 font-bold">Tolerance</span>
+                  <span className={`font-bold ${
+                    tolerance === 0 ? "text-red-600" : 
+                    tolerance === 1 ? "text-orange-500" : 
+                    tolerance === 2 ? "text-yellow-600" : 
+                    tolerance === 3 ? "text-green-500" : "text-emerald-600"
+                  }`}>{toleranceLabels[tolerance]}</span>
+                </div>
+                {/* Dynamic Explanatory Text */}
+                <div className="text-right">
+                  <span className="text-xs text-slate-500 italic min-h-[2.5rem] sm:min-h-[1.5rem] inline-block">
+                    {toleranceDescriptions[tolerance]}
+                  </span>
+                </div>
+              </div>
+
+              <input 
+                type="range" min="0" max="4" step="1" 
+                value={tolerance} 
+                onChange={(e) => setTolerance(Number(e.target.value))} 
+                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer" 
+              />
+              <div className="flex justify-between text-xs text-slate-400 mt-2 px-1">
+                <span>Core</span>
+                <span>Primary</span>
+                <span>Secondary</span>
+                <span>Tertiary</span>
+                <span>Open</span>
+              </div>
             </div>
           </div>
         )}
+
+
 
         {/* NAV FOOTER */}
         <div className="mt-auto pt-4 pb-8 flex justify-between items-center border-t border-slate-200">

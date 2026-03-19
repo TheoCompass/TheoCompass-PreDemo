@@ -23,7 +23,8 @@ const TOLERANCE_STYLES = [
   "bg-blue-400 text-blue-50 border-blue-500 hover:bg-blue-500"
 ];
 
-const TOLERANCE_TEXT = ["Salvation Issue", "Opposed", "Discerning", "Charitable", "Accepting"];
+// UPDATED: Reflects the new Dogmatic Weight framing
+const TOLERANCE_TEXT = ["Core Dogma", "Primary", "Secondary", "Tertiary", "Non-Essential"];
 
 const CERTAINTY_SIZES = [
   "text-[10px] px-2 py-0.5 font-medium border",
@@ -146,13 +147,15 @@ export default function TheologicalLabelCloud({ userLabels, className = "" }: Th
             </div>
           </div>
           <div className="flex flex-col gap-3 flex-2">
-            <span className="text-slate-400 uppercase tracking-wider text-[10px] font-bold">Posture (Color)</span>
+            {/* UPDATED: Legend Header */}
+            <span className="text-slate-400 uppercase tracking-wider text-[10px] font-bold">Dogmatic Weight (Color)</span>
             <div className="flex flex-wrap items-center gap-2">
-              <span className={`rounded-full ${CERTAINTY_SIZES[1]} ${TOLERANCE_STYLES[0]}`}>Salvation Issue</span>
-              <span className={`rounded-full ${CERTAINTY_SIZES[1]} ${TOLERANCE_STYLES[1]}`}>Opposed</span>
-              <span className={`rounded-full ${CERTAINTY_SIZES[1]} ${TOLERANCE_STYLES[2]}`}>Discerning</span>
-              <span className={`rounded-full ${CERTAINTY_SIZES[1]} ${TOLERANCE_STYLES[3]}`}>Charitable</span>
-              <span className={`rounded-full ${CERTAINTY_SIZES[1]} ${TOLERANCE_STYLES[4]}`}>Accepting</span>
+              {/* UPDATED: Legend Badges */}
+              <span className={`rounded-full ${CERTAINTY_SIZES[1]} ${TOLERANCE_STYLES[0]}`}>Core Dogma</span>
+              <span className={`rounded-full ${CERTAINTY_SIZES[1]} ${TOLERANCE_STYLES[1]}`}>Primary</span>
+              <span className={`rounded-full ${CERTAINTY_SIZES[1]} ${TOLERANCE_STYLES[2]}`}>Secondary</span>
+              <span className={`rounded-full ${CERTAINTY_SIZES[1]} ${TOLERANCE_STYLES[3]}`}>Tertiary</span>
+              <span className={`rounded-full ${CERTAINTY_SIZES[1]} ${TOLERANCE_STYLES[4]}`}>Non-Essential</span>
             </div>
           </div>
         </div>
