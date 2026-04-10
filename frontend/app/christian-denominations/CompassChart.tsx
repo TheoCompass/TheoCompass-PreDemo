@@ -184,6 +184,7 @@ interface CompassProps {
     isExport?: boolean;
     selectedMode?: string | null;
     familyMatches?: any[];
+    displayFamilies?: boolean;
 }
 
 export default function CompassChart({ userCoords, userTolerance, isExport = false, selectedMode = 'quick', familyMatches = [] }: CompassProps) {
