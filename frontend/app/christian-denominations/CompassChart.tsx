@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceArea, ReferenceLine } from 'recharts';
+import { FAMILY_COLORS, FAMILY_METADATA } from '../../lib/taxonomy';
 
 const AXIS_OPTIONS = [
     { key: 'theol_cons_lib_avg', label: 'Theology: Progressive ↔ Orthodox', minLabel: 'Progressive', maxLabel: 'Orthodox' },
@@ -17,50 +18,6 @@ const AXIS_OPTIONS = [
     { key: 'intellect_exper_avg', label: 'Practice: Experiential ↔ Intellectual', minLabel: 'Experiential', maxLabel: 'Intellectual' },
     { key: 'tolerance_score', label: 'Posture: Accepting ↔ Dogmatic', minLabel: 'Accepting', maxLabel: 'Dogmatic' },
 ];
-
-const FAMILY_COLORS: Record<string, string> = {
-    'African Independent Churches': '#84cc16', 
-    'Alternative Esoteric Movements': '#c084fc', 
-    'Anabaptism': '#14b8a6', 
-    'Anglicanism': '#8b5cf6', 
-    'Baptist': '#10b981', 
-    'Catholicism': '#eab308', 
-    'Early Christianity Sects': '#b45309', 
-    'Eastern Oriental Orthodoxy': '#d97706', 
-    'Evangelicalism': '#059669', 
-    'Gnosticism Early Heresies': '#9333ea', 
-    'Independent Modern Movements': '#0ea5e9', 
-    'Lutheranism': '#6366f1', 
-    'Methodism Holiness': '#f97316', 
-    'Nontrinitarian Universalist': '#f472b6', 
-    'Pentecostalism Charismatic': '#ef4444', 
-    'Proto-Protestant Radical Reform': '#ea580c', 
-    'Quakerism': '#a8a29e', 
-    'Reformed Presbyterian': '#3b82f6', 
-    'Restorationist Primitivist': '#ec4899', 
-};
-
-const FAMILY_METADATA: Record<string, { century: string, region: string, members: string, desc: string }> = {
-    'African Independent Churches': { century: '19th-20th Century', region: 'Sub-Saharan Africa', members: '60-80 million', desc: 'Indigenous African Christian movements operating independently of Western missionary churches, emphasizing cultural integration and charismatic worship.' },
-    'Alternative Esoteric Movements': { century: '19th-20th Century', region: 'North America / Europe', members: '10 million+', desc: 'Syncretic groups drawing on Christian themes but significantly departing from orthodox theology, sometimes incorporating New Age concepts.' },
-    'Anabaptism': { century: '16th Century', region: 'Switzerland / Germany', members: '4 million', desc: 'Radical Reformation movements emphasizing believer\'s baptism, non-violence, and strict separation of church and state.' },
-    'Anglicanism': { century: '16th Century', region: 'England', members: '85 million', desc: 'Western tradition evolving from the English Reformation, historically seeking a via media (middle way) between Protestant theology and Catholic liturgy.' },
-    'Baptist': { century: '17th Century', region: 'England / N. America', members: '100 million+', desc: 'Protestant tradition emphasizing believer\'s baptism by immersion, congregational autonomy, and the ultimate authority of Scripture.' },
-    'Catholicism': { century: '1st Century', region: 'Middle East / Rome', members: '1.3 billion', desc: 'The largest Christian tradition, tracing origins to the apostles, characterized by papal primacy, sacramental theology, and episcopal succession.' },
-    'Early Christianity Sects': { century: '1st-5th Century', region: 'Mediterranean', members: 'Historic', desc: 'The foundational centuries of the Christian church, encompassing the proto-orthodox mainstream and various early sectarian groups.' },
-    'Eastern Oriental Orthodoxy': { century: '1st Century', region: 'Eastern Europe / Mid East', members: '260 million', desc: 'Ancient traditions emphasizing holy tradition, conciliarity, mysteries (sacraments), and maintaining unbroken apostolic succession.' },
-    'Evangelicalism': { century: '18th Century', region: 'UK / North America', members: '300-400 million', desc: 'Trans-denominational Protestant movement emphasizing the authority of the Bible, the necessity of personal conversion, and active evangelism.' },
-    'Gnosticism Early Heresies': { century: '1st-4th Century', region: 'Mediterranean', members: 'Historic', desc: 'Early esoteric movements emphasizing secret knowledge (gnosis) for salvation, definitively rejected by early orthodox Christianity.' },
-    'Independent Modern Movements': { century: '20th-21st Century', region: 'Global', members: '50-100 million', desc: 'Non-denominational or regionally specific modern churches operating outside traditional historical categories and governance.' },
-    'Lutheranism': { century: '16th Century', region: 'Germany', members: '75 million', desc: 'A major branch of Western Christianity identifying with the theology of Martin Luther, emphasizing justification by grace alone through faith alone.' },
-    'Methodism Holiness': { century: '18th Century', region: 'England', members: '80 million', desc: 'Protestant movement originating with John Wesley, known for its emphasis on personal sanctification, Arminian theology, and methodical living.' },
-    'Nontrinitarian Universalist': { century: '16th-19th Century', region: 'Europe / N. America', members: '5 million+', desc: 'Groups rejecting the orthodox doctrine of the Trinity or embracing eventual salvation of all souls, prioritizing progressive theology.' },
-    'Pentecostalism Charismatic': { century: '20th Century', region: 'North America', members: '600 million+', desc: 'Highly dynamic movements emphasizing the direct, personal experience of God through baptism in the Holy Spirit and spiritual gifts.' },
-    'Proto-Protestant Radical Reform': { century: '12th-15th Century', region: 'Europe', members: '5 million+', desc: 'Pre-Reformation movements and medieval radical groups that challenged centralized Catholic authority, doctrines, and wealth.' },
-    'Quakerism': { century: '17th Century', region: 'England', members: '400,000', desc: 'A movement emphasizing the Inner Light or direct inward experience of God, traditionally practicing unprogrammed worship and pacifism.' },
-    'Reformed Presbyterian': { century: '16th Century', region: 'Switzerland / Scotland', members: '80-100 million', desc: 'Protestant traditions rooted in the theology of John Calvin, emphasizing God\'s sovereignty and covenant theology.' },
-    'Restorationist Primitivist': { century: '19th Century', region: 'North America', members: '35-40 million', desc: 'Movements seeking to bypass historical traditions to restore original, first-century Christianity, sometimes producing new scriptures.' }
-};
 
 const getFamilyKey = (family: string) => {
     if (!family) return null;
@@ -185,6 +142,11 @@ interface CompassProps {
     selectedMode?: string | null;
     familyMatches?: any[];
     displayFamilies?: boolean;
+    matches?: any[];
+    showRings?: boolean;
+    showTrails?: boolean;
+    onToggleRings?: () => void;
+    onToggleTrails?: () => void;
 }
 
 export default function CompassChart({ userCoords, userTolerance, isExport = false, selectedMode = 'quick', familyMatches = [] }: CompassProps) {

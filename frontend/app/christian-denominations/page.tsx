@@ -48,6 +48,52 @@ const AXIS_LABELS: Record<string, { left: string, right: string, desc: string }>
   intellectexper: { left: "Experiential", right: "Intellectual", desc: "Primary mode of knowing God" }
 };
 
+// --- FINGERPRINT CATEGORY GROUPING ---
+const FINGERPRINT_CATEGORIES = {
+  Theology: {
+    axes: ["theolconslib", "supernat", "literalcrit", "divhumagency"] as string[],
+    label: "Theology",
+    desc: "Core beliefs about God, scripture, and salvation",
+  },
+  Practice: {
+    axes: ["liturgspont", "sacramfunct", "intellectexper"] as string[],
+    label: "Practice",
+    desc: "Worship style, sacraments, and spiritual life",
+  },
+  Posture: {
+    axes: ["socialconslib", "counterpromodern", "cultsepeng", "clericegal", "communindiv"] as string[],
+    label: "Posture",
+    desc: "Social ethics, culture, and church governance",
+  },
+};
+
+// Compute which axes are most extreme (closest to 0 or 100)
+function getDistinctiveAxes(userCoords: Record<string, number>, count: number = 3): string[] {
+  return Object.entries(userCoords)
+    .filter(([key]) => AXIS_LABELS[key] !== undefined)
+    .sort((a, b) => {
+      const extremityA = Math.abs(a[1] - 50);
+      const extremityB = Math.abs(b[1] - 50);
+      return extremityB - extremityA;
+    })
+    .slice(0, count)
+    .map(([key]) => key);
+}
+
+// Compute macro ring scores from user coords
+function computeMacroRingScores(userCoords: Record<string, number>): { name: string; score: number; dominantPole: "left" | "right" }[] {
+  const result: { name: string; score: number; dominantPole: "left" | "right" }[] = [];
+  for (const [catName, catData] of Object.entries(FINGERPRINT_CATEGORIES)) {
+    const scores = catData.axes
+      .map((axis) => userCoords[axis])
+      .filter((s) => s !== undefined && s !== null) as number[];
+    if (scores.length === 0) continue;
+    const avg = scores.reduce((sum, s) => sum + s, 0) / scores.length;
+    result.push({ name: catData.label, score: Math.round(avg), dominantPole: avg <= 50 ? "right" : "left" });
+  }
+  return result;
+}
+
 // --- QUIZ CATEGORY LABELS ---
 const QUIZ_CATEGORY_LABELS: Record<string, string> = {
   "GOD": "The Nature of God, Christ, & the Holy Spirit",
@@ -61,39 +107,120 @@ const QUIZ_CATEGORY_LABELS: Record<string, string> = {
   "MET": "Overarching Theological Approaches",
 };
 
-// --- COMPONENT: Expandable Denomination Card ---
+// Helper: extract 2-3 defining trait pole labels for a denomination
+function getTraitTags(
+  dimCoords: Record<string, number> | undefined,
+  userCoords?: Record<string, number>,
+  count: number = 2
+): { label: string; color: string }[] {
+  if (!dimCoords || Object.keys(dimCoords).length === 0) return [];
+  const axes = Object.entries(dimCoords)
+    .filter(([key]) => AXIS_LABELS[key])
+    .sort((a, b) => {
+      const extremityA = Math.abs(a[1] - 50);
+      const extremityB = Math.abs(b[1] - 50);
+      return extremityB - extremityA;
+    })
+    .slice(0, count);
+
+  return axes.map(([key, score]) => {
+    const labels = AXIS_LABELS[key];
+    const pole = score > 50 ? labels.left : labels.right;
+    const aligned = userCoords && userCoords[key] !== undefined
+      ? Math.abs(score - userCoords[key]) <= 15
+      : false;
+    return {
+      label: pole,
+      color: aligned
+        ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+        : "bg-slate-100 text-slate-600 border-slate-200",
+    };
+  });
+}
+
+// Tier styling helper
+function getTierStyle(percentage: number): {
+  badge: string;
+  bg: string;
+  barColor: string;
+} {
+  if (percentage >= 85) return { badge: "Strong Affinity", bg: "bg-emerald-50/60", barColor: "bg-emerald-500" };
+  if (percentage >= 70) return { badge: "Significant Overlap", bg: "bg-amber-50/60", barColor: "bg-amber-400" };
+  return { badge: "Moderate Resonance", bg: "bg-slate-50/60", barColor: "bg-slate-400" };
+}
+
+// --- COMPONENT: Expandable Denomination Card (Enhanced) ---
 export function DenominationCard({
   denom,
   rank,
+  userCoords,
 }: {
   denom: any;
   rank: number;
+  userCoords?: Record<string, number>;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const tier = getTierStyle(denom.matchPercentage);
+  const tags = getTraitTags(denom.dimCoords, userCoords);
+
+  const tierAccentColor =
+    tier.badge === "Strong Affinity" ? "#10b981" :
+    tier.badge === "Significant Overlap" ? "#f59e0b" :
+    "#94a3b8";
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl shadow-sm mb-3 overflow-hidden transition-all duration-200 hover:border-slate-300">
+    <div className="bg-white border border-slate-200 rounded-xl shadow-sm mb-3 overflow-hidden transition-all duration-200 hover:border-slate-300 hover:shadow-md border-l-4"
+      style={{ borderLeftColor: tierAccentColor }}
+    >
       <button
         type="button"
-        className="w-full p-4 flex justify-between items-center cursor-pointer select-none bg-white hover:bg-slate-50 text-left"
+        className="w-full p-4 flex justify-between items-center cursor-pointer select-none hover:bg-slate-50/60 text-left transition-colors"
         onClick={() => setIsOpen(!isOpen)}
       >
         <div className="flex items-center gap-4">
-          <div className="text-slate-300 font-bold w-4">{rank}.</div>
+          <div className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+            rank === 1 ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"
+          }`}>
+            {rank}
+          </div>
           <div>
-            <h4 className={`font-bold transition-colors ${isOpen ? "text-blue-700" : "text-slate-800"}`}>
-              {denom.name}
-            </h4>
-            <div className="text-xs text-slate-500 mt-0.5">{denom.family}</div>
+            <div className="flex items-center gap-2 mb-0.5">
+              <h4 className={`font-bold text-sm transition-colors ${isOpen ? "text-blue-700" : "text-slate-800"}`}>
+                {denom.name}
+              </h4>
+              <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${
+                tier.badge === "Strong Affinity"
+                  ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                  : tier.badge === "Significant Overlap"
+                  ? "text-amber-700 bg-amber-50 border-amber-200"
+                  : "text-slate-600 bg-slate-50 border-slate-200"
+              }`}>
+                {tier.badge}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-xs text-slate-400">{denom.family}</span>
+              {tags.length > 0 && (
+                <span className="flex gap-1">
+                  {tags.map((tag, i) => (
+                    <span key={i} className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${tag.color}`}>
+                      {tag.label}
+                    </span>
+                  ))}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="font-bold text-lg text-slate-700 bg-slate-50 px-3 py-1 rounded-lg">
+        <div className="flex items-center gap-3">
+          <div className={`font-bold text-sm px-3 py-1 rounded-lg ${
+            rank === 1 ? "bg-blue-100 text-blue-800" : "bg-slate-100 text-slate-600"
+          }`}>
             {denom.matchPercentage}%
           </div>
           <div className={`text-slate-400 transform transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`}>
-            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
           </div>
@@ -101,15 +228,62 @@ export function DenominationCard({
       </button>
 
       {isOpen && (
-        <div className="p-4 pt-0 border-t border-slate-100 bg-slate-50">
+        <div className="px-4 pb-4 pt-1 border-t border-slate-100 bg-slate-50/80">
           <div className="flex flex-wrap gap-4 mt-3 mb-3 text-xs text-slate-500 font-mono">
             {denom.foundedyear && <span>Founded {denom.foundedyear}</span>}
             {denom.regionorigin && <span>Origin {denom.regionorigin}</span>}
           </div>
 
-          <p className="text-sm text-slate-700 leading-relaxed">
+          <p className="text-sm text-slate-700 leading-relaxed mb-4">
             {denom.description || "No description available for this tradition."}
           </p>
+
+          {/* Mini Divergence Bars */}
+          {userCoords && denom.dimCoords && Object.keys(denom.dimCoords).length > 0 && (
+            <div className="border-t border-slate-200/60 pt-3 mt-2">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                Alignment by Axis
+              </p>
+              <div className="flex flex-col gap-1.5">
+                {(Object.entries(denom.dimCoords) as [string, number][])
+                  .sort((a, b) => {
+                    const gapA = userCoords[a[0]] !== undefined ? Math.abs(userCoords[a[0]] - a[1]) : 99;
+                    const gapB = userCoords[b[0]] !== undefined ? Math.abs(userCoords[b[0]] - b[1]) : 99;
+                    return gapB - gapA;
+                  })
+                  .slice(0, 5)
+                  .map(([axis, denomScore]) => {
+                    const labels = AXIS_LABELS[axis];
+                    const userScore = userCoords[axis];
+                    if (!labels || userScore === undefined) return null;
+                    const flippedUser = 100 - userScore;
+                    const flippedDenom = 100 - (denomScore as number);
+                    const gap = Math.abs(flippedUser - flippedDenom);
+                    return (
+                      <div key={axis} className="flex items-center gap-2 h-4">
+                        <span className="text-[9px] text-slate-400 w-16 text-right truncate">{labels.right}</span>
+                        <div className="relative flex-grow h-1.5 bg-slate-100 rounded-full">
+                          <div
+                            className="absolute top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-slate-700 border border-white shadow-sm z-10"
+                            style={{ left: `${flippedUser}%` }}
+                          />
+                          <div
+                            className="absolute top-1/2 -translate-y-1/2 h-full rounded-full z-0"
+                            style={{
+                              left: `${Math.min(flippedUser, flippedDenom)}%`,
+                              width: `${gap}%`,
+                              backgroundColor: gap <= 10 ? "#10b981" : "#f59e0b",
+                              opacity: 0.3,
+                            }}
+                          />
+                        </div>
+                        <span className="text-[9px] text-slate-400 w-16 truncate">{labels.left}</span>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -120,39 +294,40 @@ export function FamilyCard({ familyData, rank }: { familyData: any, rank: number
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl shadow-sm mb-3 overflow-hidden transition-all duration-200 hover:border-slate-300">
-      <div 
-        className="p-4 flex justify-between items-center cursor-pointer select-none bg-white hover:bg-slate-50"
+    <div className="bg-white border border-slate-200 rounded-xl shadow-sm mb-3 overflow-hidden transition-all duration-200 hover:border-slate-300 hover:shadow-md border-l-4 border-l-purple-400">
+      <div
+        className="p-4 flex justify-between items-center cursor-pointer select-none hover:bg-slate-50/60 text-left transition-colors"
         onClick={() => setIsOpen(!isOpen)}
       >
         <div className="flex items-center gap-4">
-          <div className="text-slate-300 font-bold w-4">{rank}.</div>
+          <div className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold bg-slate-100 text-slate-500`}>
+            {rank}
+          </div>
           <div>
-            <h4 className={`font-bold text-slate-800 transition-colors ${isOpen ? 'text-blue-700' : 'group-hover:text-blue-700'}`}>
+            <h4 className={`font-bold text-sm transition-colors ${isOpen ? 'text-blue-700' : 'text-slate-800'}`}>
               {familyData.family}
             </h4>
-            <div className="text-xs text-slate-500 mt-0.5">
-              Closest Individual Match: <span className="font-semibold text-slate-700">{familyData.topDenomination?.name}</span>
+            <div className="text-xs text-slate-400 mt-0.5">
+              Closest Individual Match: <span className="font-semibold text-slate-600">{familyData.topDenomination?.name}</span>
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="font-bold text-lg text-slate-700 bg-slate-50 px-3 py-1 rounded-lg">
+        <div className="flex items-center gap-3">
+          <div className="font-bold text-sm text-slate-600 bg-slate-100 px-3 py-1 rounded-lg">
             {familyData.matchPercentage}%
           </div>
           <div className={`text-slate-400 transform transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>
-            {/* Standard SVG chevron */}
-            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
           </div>
         </div>
       </div>
 
       {isOpen && (
-        <div className="p-4 pt-0 border-t border-slate-100 bg-slate-50">
-          <p className="text-xs text-slate-500 mb-3 mt-3 uppercase tracking-wider font-bold">Specific Denominations in Family</p>
-          <div className="flex flex-col gap-2">
+        <div className="px-4 pb-4 pt-1 border-t border-slate-100 bg-slate-50/80">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3 mt-3">Specific Denominations in Family</p>
+          <div className="flex flex-col gap-1.5">
             {familyData.allDenominations.slice(0, 5).map((denom: any) => (
-              <div key={denom.id} className="flex justify-between items-center bg-white p-2.5 rounded border border-slate-100">
+              <div key={denom.id} className="flex justify-between items-center bg-white p-2.5 rounded-lg border border-slate-100">
                  <span className="text-sm font-medium text-slate-700">{denom.name}</span>
                  <span className="text-sm font-bold text-blue-600">{denom.matchPercentage}%</span>
               </div>
@@ -190,6 +365,9 @@ export default function QuizPage() {
   const [userTolerance, setUserTolerance] = useState<number>(50);
   const [userLabels, setUserLabels] = useState([]);
   const [isCalculating, setIsCalculating] = useState(false);
+  const [showCompare, setShowCompare] = useState(false);
+  const [expandedAxis, setExpandedAxis] = useState<string | null>(null);
+  const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
 
   // --- SCREENSHOT REF ---
   const exportRef = useRef<HTMLDivElement>(null);
@@ -988,55 +1166,49 @@ if (currentView === 'results') {
               </div>
             </div>
 
-            {/* RIGHT COLUMN: 13-Axis Fingerprint Chart */}
+            {/* RIGHT COLUMN: 13-Axis Fingerprint Chart (Enhanced) */}
             <div className="col-span-7 bg-white rounded-2xl p-8 shadow-sm border border-slate-200">
               <div className="text-lg font-bold text-slate-400 uppercase tracking-widest mb-6 border-b border-slate-100 pb-3">Theological Fingerprint</div>
               <div className="flex flex-col gap-3">
-                {Object.entries(AXIS_LABELS).map(([key, labels]) => {
-                  const score = userCoords[key];
-                  if (score === undefined) return null;
-                  const isRight = score <= 50;
-                  const strength = isRight ? (50 - score) : (score - 50);
-                  const barWidth = `${(strength / 50) * 100}%`;
-
-                  return (
-                    <div key={key} className="flex items-center gap-3">
-                      <div className="w-[125px] text-[10px] font-medium text-slate-500 uppercase tracking-wider text-right truncate">{labels.left}</div>
-                      
-                      {/* Fixed Diverging Bar Structure */}
+                {Object.entries(FINGERPRINT_CATEGORIES).map(([catKey, catData]) => (
+                  <div key={catKey} className="mb-2">
+                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2 border-b border-slate-100 pb-1">{catData.label}</div>
+                    {catData.axes.map((axis) => {
+                      const labels = AXIS_LABELS[axis];
+                      const score = userCoords[axis];
+                      if (score === undefined || score === null) return null;
+                      const isLeft = score > 50;
+                      return (
+                        <div key={axis} className="flex items-center gap-2 mb-1">
+                          <div className="w-[95px] text-[9px] font-medium text-slate-500 uppercase tracking-wider text-right truncate">{labels.left}</div>
+                          <div className="flex-grow h-2 bg-slate-100 rounded-full relative">
+                            <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-300 z-10"></div>
+                            <div
+                              className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full border border-white shadow z-20 ${isLeft ? 'bg-blue-600' : 'bg-slate-700'}`}
+                              style={{ left: `${100 - score}%` }}
+                            />
+                          </div>
+                          <div className="w-[95px] text-[9px] font-medium text-slate-500 uppercase tracking-wider text-left truncate">{labels.right}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+                {/* Tolerance Axis */}
+                <div className="mt-3 pt-3 border-t border-slate-100">
+                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2">Posture</div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-[95px] text-[9px] font-bold text-amber-600 uppercase tracking-wider text-right truncate">Accepting</div>
                       <div className="flex-grow h-2.5 bg-slate-100 rounded-full relative">
                         <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-300 z-10"></div>
-                        
-                        <div className="absolute right-1/2 top-0 bottom-0 flex justify-end w-1/2">
-                          {!isRight && <div className="h-full bg-slate-700 rounded-l-full transition-all" style={{ width: barWidth }}></div>}
-                        </div>
-                        
-                        <div className="absolute left-1/2 top-0 bottom-0 flex justify-start w-1/2">
-                          {isRight && <div className="h-full bg-blue-600 rounded-r-full transition-all" style={{ width: barWidth }}></div>}
-                        </div>
+                        <div
+                          className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-amber-500 border border-white shadow z-20"
+                          style={{ left: `${100 - userTolerance}%` }}
+                        />
                       </div>
-                      
-                      <div className="w-[125px] text-[10px] font-medium text-slate-500 uppercase tracking-wider text-left truncate">{labels.right}</div>
+                      <div className="w-[95px] text-[9px] font-bold text-amber-600 uppercase tracking-wider text-left truncate">Dogmatic</div>
                     </div>
-                  );
-                })}
-
-                 {/* Tolerance Axis */}
-                 <div className="flex items-center gap-3 mt-4 pt-4 border-t border-slate-100">
-                    <div className="w-[100px] text-[10px] font-bold text-amber-600 uppercase tracking-wider text-right truncate">Accepting</div>
-                    <div className="flex-grow h-2.5 bg-slate-100 rounded-full relative">
-                        <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-300 z-10"></div>
-                        
-                        <div className="absolute right-1/2 top-0 bottom-0 flex justify-end w-1/2">
-                            {userTolerance >= 50 && <div className="h-full bg-amber-500 rounded-l-full" style={{ width: `${((userTolerance - 50) / 50) * 100}%` }} />}
-                        </div>
-                        
-                        <div className="absolute left-1/2 top-0 bottom-0 flex justify-start w-1/2">
-                             {userTolerance <= 50 && <div className="h-full bg-amber-500 rounded-r-full" style={{ width: `${((50 - userTolerance) / 50) * 100}%` }} />}
-                        </div>
-                    </div>
-                    <div className="w-[100px] text-[10px] font-bold text-amber-600 uppercase tracking-wider text-left truncate">Dogmatic</div>
-                 </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1290,92 +1462,299 @@ if (currentView === 'results') {
                   ))
                 ) : (
                   results.slice(1).map((denom: any, index: number) => (
-                    <DenominationCard key={denom.id} denom={denom} rank={index + 2} />
+                    <DenominationCard key={denom.id} denom={denom} rank={index + 2} userCoords={userCoords} />
                   ))
                 )}
               </div>
 
-              {/* THEOLOGICAL FINGERPRINT (13-AXIS CHART) */}
+              {/* THEOLOGICAL FINGERPRINT (13-AXIS CHART — OVERHAULED) */}
               <div className="mt-12 mb-8">
                 <h3 className="font-serif text-2xl font-bold text-slate-800 mb-2">Your Theological Fingerprint</h3>
-                <p className="text-slate-600 mb-8 text-sm">This diverging chart maps your calculated position across the 12 hidden dimensions of Christian theology, plus your overall dogmatism.</p>
-                
-                <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-6">
-                  
-                  {Object.entries(AXIS_LABELS).map(([key, labels]) => {
-                    const score = userCoords[key];
-                    if (score === undefined || score === null) return null;
-                    
-                    const isRight = score <= 50;
-                    const strength = isRight ? (50 - score) : (score - 50);
-                    const barWidth = `${(strength / 50) * 100}%`;
-                    
-                    return (
-                      <div key={key} className="flex flex-col relative group">
-                        <div className="flex justify-between text-xs font-bold uppercase tracking-wide text-slate-500 mb-1 z-10 px-1">
-                          <span className={!isRight ? "text-blue-700" : ""}>{labels.left}</span>
-                          <span className={isRight ? "text-blue-700" : ""}>{labels.right}</span>
-                        </div>
-                        
-                        <div className="relative w-full h-4 bg-slate-100 rounded-full overflow-hidden flex">
-                          <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-slate-300 z-10"></div>
-                          <div className="w-1/2 h-full relative flex justify-end">
-                            {!isRight && <div className="h-full bg-blue-500 rounded-l-full" style={{ width: barWidth }}></div>}
-                          </div>
-                          <div className="w-1/2 h-full relative flex justify-start">
-                            {isRight && <div className="h-full bg-blue-700 rounded-r-full" style={{ width: barWidth }}></div>}
-                          </div>
-                        </div>
+                <p className="text-slate-600 mb-6 text-sm">
+                  Your positions on 13 bipolar dimensions of Christian theology, grouped by category.
+                  Click any axis or toggle compare to see how you line up with your top match.
+                </p>
 
-                        <div className="hidden group-hover:block absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs px-3 py-1 rounded shadow-lg whitespace-nowrap z-20">
-                          {labels.desc} ({score}/100)
-                        </div>
+                {/* === SUMMARY MACRO RING === */}
+                {Object.keys(userCoords).length > 0 && (
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm mb-6">
+                    <div className="flex items-center justify-center gap-6 md:gap-10 flex-wrap">
+                      {computeMacroRingScores(userCoords).map((macro) => {
+                        const intensity = Math.abs(macro.score - 50) / 50;
+                        const arcDeg = intensity * 180;
+                        const rotate = macro.dominantPole === "left" ? 0 : -arcDeg;
+                        const color = macro.name === "Theology"
+                          ? (macro.dominantPole === "left" ? "#2563eb" : "#1e40af")
+                          : macro.name === "Practice"
+                          ? (macro.dominantPole === "left" ? "#7c3aed" : "#5b21b6")
+                          : (macro.dominantPole === "left" ? "#059669" : "#047857");
+                        return (
+                          <div key={macro.name} className="flex flex-col items-center gap-1.5">
+                            <div className="relative w-20 h-10 overflow-hidden">
+                              <svg viewBox="0 0 80 40" className="w-full h-full">
+                                <circle cx="40" cy="40" r="32" fill="none" stroke="#e2e8f0" strokeWidth="8" />
+                                <circle
+                                  cx="40" cy="40" r="32" fill="none" stroke={color} strokeWidth="8"
+                                  strokeDasharray={`${Math.PI * 32}`}
+                                  strokeDashoffset={`${Math.PI * 32 * (1 - intensity)}`}
+                                  transform="rotate(-90 40 40)"
+                                  style={{ transition: "stroke-dashoffset 0.8s ease-out" }}
+                                />
+                              </svg>
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <span className="text-xs font-bold text-slate-700">{macro.score}</span>
+                              </div>
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{macro.name}</span>
+                            <span className="text-[9px] text-slate-400">{macro.dominantPole === "left" ? "Left-leaning" : "Right-leaning"}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* === COMPARISON TOGGLE + DISTINCTIVE VIEWS === */}
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                  <button
+                    onClick={() => setShowCompare(!showCompare)}
+                    className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${
+                      showCompare
+                        ? "bg-blue-600 text-white shadow-md"
+                        : "bg-white border border-slate-300 text-slate-600 hover:border-blue-400 hover:text-blue-700"
+                    }`}
+                  >
+                    {showCompare ? "Hide Comparison" : `Compare with ${results[0]?.name ?? "Top Match"}`}
+                  </button>
+
+                  {(() => {
+                    const distinctive = getDistinctiveAxes(userCoords, 3);
+                    if (distinctive.length === 0) return null;
+                    return (
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="text-slate-400 font-medium">Distinctive Views:</span>
+                        {distinctive.map((axis) => {
+                          const labels = AXIS_LABELS[axis];
+                          const score = userCoords[axis];
+                          const pole = score <= 50 ? labels.right : labels.left;
+                          return (
+                            <span
+                              key={axis}
+                              className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full font-bold border border-purple-200 animate-pulse"
+                            >
+                              {pole}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* === CATEGORIZED ACCORDION FINGERPRINT === */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  {Object.entries(FINGERPRINT_CATEGORIES).map(([catKey, catData]) => {
+                    const isCollapsed = collapsedCategories[catKey] ?? false;
+                    return (
+                      <div key={catKey} className="border-b border-slate-100 last:border-b-0">
+                        {/* Category Header */}
+                        <button
+                          type="button"
+                          className="w-full px-5 py-3 flex items-center justify-between hover:bg-slate-50 transition-colors text-left"
+                          onClick={() =>
+                            setCollapsedCategories((prev) => ({
+                              ...prev,
+                              [catKey]: !isCollapsed,
+                            }))
+                          }
+                        >
+                          <div>
+                            <span className="font-bold text-slate-800 text-sm">{catData.label}</span>
+                            <span className="text-xs text-slate-400 ml-2">{catData.desc}</span>
+                          </div>
+                          <svg
+                            className={`w-4 h-4 text-slate-400 transition-transform ${isCollapsed ? "" : "rotate-180"}`}
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+
+                        {/* Category Body */}
+                        {!isCollapsed && (
+                          <div className="px-5 pb-4 pt-1 bg-slate-50/50">
+                            {catData.axes.map((axis) => {
+                              const labels = AXIS_LABELS[axis];
+                              const score = userCoords[axis];
+                              if (score === undefined || score === null) return null;
+
+                              const isLeft = score > 50;
+                              const intensity = Math.abs(score - 50) / 50;
+                              const dotPercent = 100 - score;
+                              const poleLabel = isLeft ? labels.left : labels.right;
+                              const isDistinctive = getDistinctiveAxes(userCoords, 3).includes(axis);
+                              const isZoomed = expandedAxis === axis;
+
+                              // Comparison data (top match)
+                              const topDenomData = results[0];
+                              const compareScore = topDenomData?.dimCoords?.[axis];
+                              const hasCompare = showCompare && compareScore !== undefined;
+
+                              return (
+                                <div key={axis} className="mb-3 last:mb-0">
+                                  <button
+                                    type="button"
+                                    className="w-full text-left"
+                                    onClick={() => setExpandedAxis(isZoomed ? null : axis)}
+                                  >
+                                    {/* Pole Labels */}
+                                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1 px-1">
+                                      <span className={isLeft ? "text-blue-700" : ""}>{labels.left}</span>
+                                      <span className={!isLeft ? "text-blue-700" : ""}>{labels.right}</span>
+                                    </div>
+
+                                    {/* Gradient Track + Lollipop Dot */}
+                                    <div className="relative h-6 flex items-center">
+                                      {/* Track */}
+                                      <div className="absolute inset-y-0 left-0 right-0 flex items-center">
+                                        <div className="w-full h-1.5 rounded-full bg-gradient-to-r from-slate-400 via-slate-200 to-blue-500 relative">
+                                          {/* Center tick */}
+                                          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-0.5 h-4 bg-slate-400 z-10" />
+                                        </div>
+                                      </div>
+
+                                      {/* User Lollipop Dot */}
+                                      <div
+                                        className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-white shadow z-20 transition-all ${
+                                          isDistinctive
+                                            ? "bg-purple-500 ring-2 ring-purple-300 ring-offset-1 animate-pulse"
+                                            : "bg-slate-800"
+                                        }`}
+                                        style={{ left: `${dotPercent}%` }}
+                                      />
+
+                                      {/* Comparison Diamond (Top Match) */}
+                                      {hasCompare && (
+                                        <div
+                                          className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 z-20"
+                                          style={{ left: `${100 - compareScore}%` }}
+                                          title={topDenomData.name}
+                                        >
+                                          <div className="w-2.5 h-2.5 bg-amber-500 border border-white rotate-45 shadow-sm" />
+                                        </div>
+                                      )}
+
+                                      {/* Gap Indicator (when both present) */}
+                                      {hasCompare && (
+                                        <div
+                                          className="absolute top-1/2 h-0.5 bg-red-400/60 z-10 rounded"
+                                          style={{
+                                            left: `${Math.min(dotPercent, 100 - compareScore)}%`,
+                                            width: `${Math.abs(dotPercent - (100 - compareScore))}%`,
+                                          }}
+                                        />
+                                      )}
+                                    </div>
+
+                                    {/* Score + Pole on Hover */}
+                                    <div className="flex justify-end mt-0.5">
+                                      <span className="text-[10px] font-mono text-slate-400">
+                                        {score}/100 • {poleLabel}
+                                      </span>
+                                    </div>
+                                  </button>
+
+                                  {/* Zoom Card */}
+                                  {isZoomed && (
+                                    <div className="mt-2 p-4 bg-white rounded-lg border border-slate-200 shadow-inner text-sm">
+                                      <p className="text-slate-700 font-medium mb-1">{labels.desc}</p>
+                                      <p className="text-slate-500 text-xs">
+                                        Your position (<strong>{score}/100</strong>) leans toward{" "}
+                                        <strong>{poleLabel}</strong>.
+                                        {Math.abs(score - 50) >= 40
+                                          ? " This is a strongly held conviction."
+                                          : Math.abs(score - 50) >= 20
+                                          ? " This is a moderate lean."
+                                          : " This is a balanced / near-neutral position."}
+                                      </p>
+                                      {hasCompare && (
+                                        <p className="text-slate-500 text-xs mt-1">
+                                          Your top match (<strong>{topDenomData.name}</strong>) scores{" "}
+                                          <strong>{compareScore}/100</strong> on this axis —{" "}
+                                          <span
+                                            className={
+                                              Math.abs(score - compareScore) <= 10
+                                                ? "text-emerald-600 font-medium"
+                                                : "text-amber-600 font-medium"
+                                            }
+                                          >
+                                            {Math.abs(score - compareScore) <= 10
+                                              ? "well aligned"
+                                              : `${Math.abs(score - compareScore)}pt difference`}
+                                          </span>
+                                          .
+                                        </p>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
 
-                  <hr className="my-2 border-slate-200" />
-
-                  {/* The 13th Axis: Tolerance */}
-                  <div className="flex flex-col relative group pt-2">
-                    <div className="flex justify-between text-xs font-bold uppercase tracking-wide text-slate-500 mb-1 z-10 px-1">
+                  {/* Tolerance Axis (always visible) */}
+                  <div className="px-5 py-4 border-t border-slate-200 bg-white">
+                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1 px-1">
                       <span className={userTolerance >= 50 ? "text-amber-600" : ""}>Accepting / Open</span>
                       <span className={userTolerance <= 50 ? "text-amber-600" : ""}>Dogmatic / Strict</span>
                     </div>
-                    <div className="relative w-full h-5 bg-slate-100 rounded-full overflow-hidden flex border border-slate-200">
-                      <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-slate-300 z-10"></div>
-                      <div className="w-1/2 h-full relative flex justify-end">
-                        {userTolerance >= 50 && <div className="h-full bg-amber-500 rounded-l-full" style={{ width: `${((userTolerance - 50) / 50) * 100}%` }} />}
+                    <div className="relative h-6 flex items-center">
+                      <div className="absolute inset-y-0 left-0 right-0 flex items-center">
+                        <div className="w-full h-2 rounded-full bg-gradient-to-r from-amber-300 via-slate-200 to-amber-500 relative">
+                          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-0.5 h-4 bg-slate-400 z-10" />
+                        </div>
                       </div>
-                      <div className="w-1/2 h-full relative flex justify-start">
-                        {userTolerance <= 50 && <div className="h-full bg-amber-500 rounded-r-full" style={{ width: `${((50 - userTolerance) / 50) * 100}%` }} />}
-                      </div>
+                      <div
+                        className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-amber-500 border-2 border-white shadow z-20"
+                        style={{ left: `${100 - userTolerance}%` }}
+                      />
                     </div>
-                    <div className="hidden group-hover:block absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs px-3 py-1 rounded shadow-lg whitespace-nowrap z-20">
-                      Overall Theological Posture ({userTolerance}/100)
+                    <div className="flex justify-end mt-0.5">
+                      <span className="text-[10px] font-mono text-slate-400">
+                        {userTolerance}/100 • Overall Dogmatism
+                      </span>
                     </div>
                   </div>
-
                 </div>
               </div>
 
-              {/* 2D SCATTER PLOT - ADJUSTED HEIGHT */}
+              {/* 2D COMPASS CHART */}
               <div className="mb-16">
-                 
-                 {/* Adjusted height to h-[500px] to prevent overlap */}
-                 <div className=" bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                    <div className=" relative">
-                       <CompassChart 
-                         userCoords={userCoords} 
-                         userTolerance={userTolerance} 
-                       />
-                    </div>
-                 </div>
+                <h3 className="font-serif text-2xl font-bold text-slate-800 mb-2">Tradition Compass</h3>
+                <p className="text-slate-600 mb-4 text-sm">
+                  See where you land among major Christian traditions on the socio-theological map.
+                </p>
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <CompassChart 
+                    userCoords={userCoords} 
+                    userTolerance={userTolerance} 
+                  />
+                </div>
               </div>
 
-              {/* LABEL CLOUD */}
-              <div className=" bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                <TheologicalLabelCloud userLabels={userLabels} />
+              {/* THEOLOGICAL LABEL CLOUD */}
+              <div className="mb-16">
+                <h3 className="font-serif text-2xl font-bold text-slate-800 mb-2">Your Theological Labels</h3>
+                <p className="text-slate-600 mb-4 text-sm">
+                  Key descriptors that emerge from your belief patterns, sized by conviction strength.
+                </p>
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <TheologicalLabelCloud userLabels={userLabels} />
+                </div>
               </div>
 
               {/* NEXT STEPS & SHARE FOOTER */}
