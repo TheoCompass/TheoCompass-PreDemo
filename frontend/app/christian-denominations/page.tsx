@@ -107,6 +107,19 @@ const QUIZ_CATEGORY_LABELS: Record<string, string> = {
   "MET": "Overarching Theological Approaches",
 };
 
+const QUIZ_CATEGORY_COLORS: Record<string, { text: string; dot: string; border: string; bg: string; badge: string }> = {
+  GOD: { text: "text-indigo-600", dot: "bg-indigo-400", border: "border-l-indigo-400", bg: "bg-indigo-50/40", badge: "bg-indigo-100 text-indigo-700" },
+  CHR: { text: "text-emerald-600", dot: "bg-emerald-400", border: "border-l-emerald-400", bg: "bg-emerald-50/40", badge: "bg-emerald-100 text-emerald-700" },
+  SCR: { text: "text-sky-600", dot: "bg-sky-400", border: "border-l-sky-400", bg: "bg-sky-50/40", badge: "bg-sky-100 text-sky-700" },
+  SAL: { text: "text-rose-600", dot: "bg-rose-400", border: "border-l-rose-400", bg: "bg-rose-50/40", badge: "bg-rose-100 text-rose-700" },
+  SAC: { text: "text-violet-600", dot: "bg-violet-400", border: "border-l-violet-400", bg: "bg-violet-50/40", badge: "bg-violet-100 text-violet-700" },
+  WOR: { text: "text-teal-600", dot: "bg-teal-400", border: "border-l-teal-400", bg: "bg-teal-50/40", badge: "bg-teal-100 text-teal-700" },
+  ESC: { text: "text-amber-600", dot: "bg-amber-400", border: "border-l-amber-400", bg: "bg-amber-50/40", badge: "bg-amber-100 text-amber-700" },
+  ETH: { text: "text-fuchsia-600", dot: "bg-fuchsia-400", border: "border-l-fuchsia-400", bg: "bg-fuchsia-50/40", badge: "bg-fuchsia-100 text-fuchsia-700" },
+  MET: { text: "text-cyan-600", dot: "bg-cyan-400", border: "border-l-cyan-400", bg: "bg-cyan-50/40", badge: "bg-cyan-100 text-cyan-700" },
+};
+const QUIZ_CATEGORY_COLORS_DEFAULT = { text: "text-blue-600", dot: "bg-blue-400", border: "border-l-blue-400", bg: "bg-blue-50/40", badge: "bg-blue-100 text-blue-700" };
+
 // Helper: extract 2-3 defining trait pole labels for a denomination
 function getTraitTags(
   dimCoords: Record<string, number> | undefined,
@@ -401,6 +414,7 @@ export default function QuizPage() {
   const [showCategoryTransition, setShowCategoryTransition] = useState(false);
   const [transitionCategoryName, setTransitionCategoryName] = useState("");
   const [hasShownFirstInfoPulse, setHasShownFirstInfoPulse] = useState(false);
+  const [transitionCategoryCode, setTransitionCategoryCode] = useState("");
 
   // --- DERIVED VARIABLES ---
   const totalQuestions = questions.length;
@@ -413,8 +427,8 @@ export default function QuizPage() {
   const certaintyTextColors = ["text-slate-400", "text-sky-500", "text-blue-600", "text-brand-dark"];
   const toleranceLabels = [
     "None Valid",
-    "None for Fellowship",
-    "A Few",
+    "None Valid for Fellowship",
+    "A Few Valid",
     "Most Valid",
     "All Valid"
   ];
@@ -556,6 +570,15 @@ export default function QuizPage() {
   };
 
   const handleSilenceClick = (type: "apathetic" | "hostile") => {
+    // Toggle off if same silence type clicked again
+    if (isSilenceSelected && silenceType === type) {
+      setIsSilenceSelected(false);
+      setSilenceType(null);
+      setSelectedAnswer(null);
+      setCertainty(2);
+      setTolerance(2);
+      return;
+    }
     setSelectedAnswer(`silence_${type}`); 
     setIsSilenceSelected(true);
     setSilenceType(type);
@@ -598,11 +621,11 @@ export default function QuizPage() {
       const currentCategory = QUIZ_CATEGORY_LABELS[currentQuestion.category] || currentQuestion.category;
       const nextCategory = QUIZ_CATEGORY_LABELS[nextQuestion?.category] || nextQuestion?.category;
       
-      // Show category transition if category changed
+      // Show category transition if category changed (persistent until dismissed)
       if (nextQuestion && currentCategory !== nextCategory) {
         setTransitionCategoryName(nextCategory);
+        setTransitionCategoryCode(nextQuestion.category);
         setShowCategoryTransition(true);
-        setTimeout(() => setShowCategoryTransition(false), 2000);
       }
       
       setCurrentQuestionIndex(nextIndex);
@@ -1192,20 +1215,22 @@ export default function QuizPage() {
         color: "text-slate-800",
         content: (
           <div>
-            <p className="text-sm text-slate-600 mb-4">Choose the answer that best represents your view. Click the <strong className="text-blue-600">(i) info button</strong> for a detailed definition.</p>
+            <p className="text-sm text-slate-600 mb-4">Choose the answer that best represents your view. Click <strong className="text-blue-600">"Learn more"</strong> for a detailed definition.</p>
             
-            {/* Interactive demo: sample answer card with info button */}
+            {/* Interactive demo: sample answer card with Learn more / Close pill */}
             <div className="bg-white p-4 rounded-xl border-2 border-blue-300 shadow-sm mb-3">
               <div className="flex justify-between items-center">
                 <span className="font-medium text-blue-800">Example: Transubstantiation</span>
                 <button
                   type="button"
                   onClick={(e) => { e.preventDefault(); setDemoInfoOpen(!demoInfoOpen); }}
-                  className={`min-w-8 min-h-8 w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${
-                    demoInfoOpen ? "bg-blue-600 text-white border-blue-600 shadow-md ring-2 ring-blue-200" : "bg-blue-100 text-blue-600 border-blue-300 hover:bg-blue-200 animate-pulse"
+                  className={`flex items-center gap-1.5 text-sm font-medium transition-colors flex-shrink-0 px-3 py-1.5 rounded-full border ${
+                    demoInfoOpen
+                      ? "bg-blue-600 text-white border-blue-600 shadow-md"
+                      : "bg-slate-100 text-blue-600 border-blue-200 animate-pulse-slow ring-2 ring-blue-300"
                   }`}
                 >
-                  <span className="text-sm font-serif italic font-bold">i</span>
+                  <span className="text-xs whitespace-nowrap">{demoInfoOpen ? "Close" : "Learn more"}</span>
                 </button>
               </div>
               
@@ -1218,8 +1243,7 @@ export default function QuizPage() {
             </div>
             
             <p className="text-xs text-slate-400 mt-2">
-              <span className="inline-block w-5 h-5 bg-blue-100 text-blue-600 text-center rounded-full text-xs font-serif italic font-bold mr-1 align-middle">i</span> 
-              Click the info button on any answer during the quiz to learn more about that theological position.
+              Tap <strong className="text-blue-600 font-medium">"Learn more"</strong> on any answer during the quiz to read additional context about that theological position.
             </p>
           </div>
         ),
@@ -1232,11 +1256,24 @@ export default function QuizPage() {
             <p className="text-sm text-slate-600 mb-4">How confident are you in this specific belief?</p>
             <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
               <div className="flex justify-between text-sm mb-2 font-medium">
-                <span className="text-slate-800 font-bold">Certainty</span>
-                <span className="font-bold text-blue-600">Pretty Sure</span>
+                <span className="text-slate-800 font-bold flex items-center gap-2">
+                  <svg className="w-4 h-4 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                  </svg>
+                  Certainty
+                </span>
+                <span className="font-bold text-blue-700 bg-blue-100 px-2.5 py-0.5 rounded-full text-xs">Pretty Sure</span>
               </div>
-              <div className="w-full h-2 bg-slate-200 rounded-full relative mb-2">
-                <div className="absolute left-0 top-0 h-full w-2/3 bg-blue-500 rounded-full"></div>
+              <div className="relative mb-2">
+                <div className="absolute top-1/2 left-0 right-0 h-2 -translate-y-1/2 rounded-lg pointer-events-none bg-gradient-to-r from-slate-300 via-blue-400 to-blue-600"></div>
+                <div className="absolute top-1/2 left-0 right-0 h-2 -translate-y-1/2 flex justify-between px-[2px] pointer-events-none">
+                  {[0, 1, 2, 3].map(i => (
+                    <div key={i} className={`w-0.5 h-3 -translate-y-0.5 rounded-full ${i <= 2 ? 'bg-white' : 'bg-white/60'}`} />
+                  ))}
+                </div>
+                <div className="w-full h-8 relative">
+                  <div className="absolute left-[62%] top-1/2 -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white border-2 border-blue-500 shadow-md"></div>
+                </div>
               </div>
               <div className="flex justify-between text-xs text-slate-400">
                 <span>Not Sure</span><span>Leaning</span><span>Pretty Sure</span><span>Certain</span>
@@ -1247,21 +1284,33 @@ export default function QuizPage() {
       },
       {
         title: "Set Tolerance",
-        color: "text-red-600",
+        color: "text-emerald-600",
         content: (
           <div>
             <p className="text-sm text-slate-600 mb-4">How many of the other options do you consider valid? This affects how exclusive your match is.</p>
             <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
               <div className="flex justify-between items-end mb-1">
-                <span className="text-slate-800 text-sm font-bold">Valid Alternatives</span>
-                <span className="text-sm font-bold text-yellow-600">A Few</span>
+                <span className="text-slate-800 text-sm font-bold flex items-center gap-2">
+                  <svg className="w-4 h-4 text-emerald-500" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                  </svg>
+                  Tolerance
+                </span>
+                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-yellow-50 text-yellow-600">A Few</span>
               </div>
               <p className="text-xs text-slate-500 italic mb-2">A few other options are valid, but require theological discernment.</p>
-              <div className="w-full h-2 bg-slate-200 rounded-full relative">
-                <div className="absolute left-0 top-0 h-full w-1/2 bg-amber-400 rounded-full"></div>
+              <div className="w-full h-2 rounded-full bg-gradient-to-r from-red-400 via-yellow-400 via-green-400 to-sky-400"></div>
+              <div className="hidden sm:flex justify-between text-xs text-slate-400 mt-1">
+                <span>None</span>
+                <span className="text-center leading-tight -ml-7">None for<br/>Fellowship</span>
+                <span className="-ml-8">A Few</span>
+                <span className="-ml-3">Most</span>
+                <span>All</span>
               </div>
-              <div className="flex justify-between text-xs text-slate-400 mt-1">
-                <span>None</span><span className="-ml-8">None for <br/>Fellowship</span><span>A Few</span><span>Most</span><span>All</span>
+              <div className="flex sm:hidden justify-between text-xs text-slate-400 mt-1">
+                <span>None</span>
+                <span>A Few</span>
+                <span>All</span>
               </div>
             </div>
           </div>
@@ -1274,13 +1323,19 @@ export default function QuizPage() {
           <div>
             <p className="text-sm text-slate-600 mb-4">If a question doesn't fit your theology, bypass the sliders entirely:</p>
             <div className="flex flex-col sm:flex-row gap-3 mb-3">
-              <div className="flex-1 p-3 rounded-lg border border-slate-300 bg-slate-100 text-sm">
-                <span className="font-bold text-slate-700">Apathetic Silence</span>
-                <p className="text-xs text-slate-500 mt-1">The topic isn't relevant to you. Creates a soft, neutral stance.</p>
+              <div className="flex-1 p-4 rounded-xl border-2 border-slate-300 bg-slate-50/50 text-sm flex items-start gap-3">
+                <span className="text-2xl flex-shrink-0">🤷</span>
+                <div className="text-left">
+                  <span className="font-bold text-slate-700 block">Apathetic Silence</span>
+                  <p className="text-xs text-slate-400 mt-0.5">The topic isn't relevant to you. Creates a soft, neutral stance.</p>
+                </div>
               </div>
-              <div className="flex-1 p-3 rounded-lg border border-red-200 bg-red-50 text-sm">
-                <span className="font-bold text-red-700">Hostile Silence</span>
-                <p className="text-xs text-red-600 mt-1">You reject the question's premise. Penalizes denominations that affirm it.</p>
+              <div className="flex-1 p-4 rounded-xl border-2 border-red-200 bg-red-50/50 text-sm flex items-start gap-3">
+                <span className="text-2xl flex-shrink-0">✋</span>
+                <div className="text-left">
+                  <span className="font-bold text-red-700 block">Hostile Silence</span>
+                  <p className="text-xs text-slate-400 mt-0.5">You reject the question's premise. Penalizes denominations that affirm it.</p>
+                </div>
               </div>
             </div>
           </div>
@@ -2363,19 +2418,7 @@ return (
           <div key={quizAnimKey} className="animate-slide-in-right flex flex-col flex-grow">
             {(() => {
               const cat = currentQuestion.category;
-              // Category color palette — each category gets a distinct hue
-              const catColors: Record<string, { text: string; dot: string; border: string; bg: string; badge: string }> = {
-                GOD: { text: "text-indigo-600", dot: "bg-indigo-400", border: "border-l-indigo-400", bg: "bg-indigo-50/40", badge: "bg-indigo-100 text-indigo-700" },
-                CHR: { text: "text-emerald-600", dot: "bg-emerald-400", border: "border-l-emerald-400", bg: "bg-emerald-50/40", badge: "bg-emerald-100 text-emerald-700" },
-                SCR: { text: "text-sky-600", dot: "bg-sky-400", border: "border-l-sky-400", bg: "bg-sky-50/40", badge: "bg-sky-100 text-sky-700" },
-                SAL: { text: "text-rose-600", dot: "bg-rose-400", border: "border-l-rose-400", bg: "bg-rose-50/40", badge: "bg-rose-100 text-rose-700" },
-                SAC: { text: "text-violet-600", dot: "bg-violet-400", border: "border-l-violet-400", bg: "bg-violet-50/40", badge: "bg-violet-100 text-violet-700" },
-                WOR: { text: "text-teal-600", dot: "bg-teal-400", border: "border-l-teal-400", bg: "bg-teal-50/40", badge: "bg-teal-100 text-teal-700" },
-                ESC: { text: "text-amber-600", dot: "bg-amber-400", border: "border-l-amber-400", bg: "bg-amber-50/40", badge: "bg-amber-100 text-amber-700" },
-                ETH: { text: "text-fuchsia-600", dot: "bg-fuchsia-400", border: "border-l-fuchsia-400", bg: "bg-fuchsia-50/40", badge: "bg-fuchsia-100 text-fuchsia-700" },
-                MET: { text: "text-cyan-600", dot: "bg-cyan-400", border: "border-l-cyan-400", bg: "bg-cyan-50/40", badge: "bg-cyan-100 text-cyan-700" },
-              };
-              const colors = catColors[cat] || { text: "text-blue-600", dot: "bg-blue-400", border: "border-l-blue-400", bg: "bg-blue-50/40", badge: "bg-blue-100 text-blue-700" };
+              const colors = QUIZ_CATEGORY_COLORS[cat] || QUIZ_CATEGORY_COLORS_DEFAULT;
               return (
                 <div className="flex justify-between items-center mb-4">
                   <div className={`text-xs font-bold uppercase tracking-wider ${colors.text} bg-white px-3 py-1 rounded-full border ${colors.border.replace('border-l-', 'border-')} shadow-sm`}>
@@ -2411,27 +2454,46 @@ return (
             )}
 
             {/* Category transition banner */}
-            {showCategoryTransition && (
-              <div className="mb-5 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl animate-fade-in-up text-center">
-                <div className="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-0.5">Now exploring</div>
-                <div className="text-sm font-bold text-blue-800">{transitionCategoryName}</div>
+            {showCategoryTransition && (() => {
+              const tcColors = QUIZ_CATEGORY_COLORS[transitionCategoryCode] || QUIZ_CATEGORY_COLORS_DEFAULT;
+              return (
+              <div className={`mb-5 p-3 rounded-xl animate-fade-in-up flex items-center justify-between gap-3 ${tcColors.bg} border ${tcColors.border.replace('border-l-', 'border-')} border-opacity-50`}>
+                <div className="flex-1 text-left">
+                  <div className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${tcColors.text}`}>New Section</div>
+                  <div className="text-sm font-bold text-slate-800">{transitionCategoryName}</div>
+                </div>
+                <button
+                  onClick={() => setShowCategoryTransition(false)}
+                  className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center bg-white/80 hover:bg-white text-slate-400 hover:text-slate-600 transition-colors border border-slate-200"
+                  aria-label="Dismiss category transition"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
-            )}
+              );
+            })()}
 
-            {/* Question navigation dots */}
+            {/* Question navigation dots (color-coded by category) */}
             <div className="flex items-center justify-center gap-1.5 mb-4">
-              {questions.map((q, i) => (
-                <div
-                  key={i}
-                  className={`h-1.5 rounded-full transition-all duration-300 ${
-                    i === currentQuestionIndex
-                      ? "w-5 bg-blue-600"
-                      : userAnswers[q.id]
-                      ? "w-1.5 bg-blue-400"
-                      : "w-1.5 bg-slate-300"
-                  }`}
-                />
-              ))}
+              {questions.map((q, i) => {
+                const dotColors = QUIZ_CATEGORY_COLORS[q.category] || QUIZ_CATEGORY_COLORS_DEFAULT;
+                const isCurrent = i === currentQuestionIndex;
+                const isAnswered = !!userAnswers[q.id];
+                return (
+                  <div
+                    key={i}
+                    className={`h-1.5 rounded-full transition-all duration-300 ${
+                      isCurrent
+                        ? "w-5 bg-blue-600"
+                        : isAnswered
+                        ? `w-1.5 ${dotColors.dot}`
+                        : "w-1.5 bg-slate-300"
+                    }`}
+                  />
+                );
+              })}
             </div>
 
             <h1 className="font-serif text-2xl md:text-3xl font-bold text-slate-900 mb-8 leading-snug">
@@ -2439,7 +2501,7 @@ return (
             </h1>
 
             {/* ANSWERS */}
-            <div className={`flex flex-col gap-3 mb-6 transition-opacity duration-300 ${isSilenceSelected ? "opacity-30 pointer-events-none" : ""}`}>
+            <div className={`flex flex-col gap-3 mb-6 transition-opacity duration-300 ${isSilenceSelected ? "opacity-40" : ""}`}>
               {displayAnswers.map((ans) => {
                 const isSelected = selectedAnswer === ans.id;
                 const isInfoOpen = expandedInfo === ans.id;
@@ -2470,12 +2532,7 @@ return (
                           !hasShownFirstInfoPulse && currentQuestionIndex === 0 ? "animate-pulse-slow ring-2 ring-blue-300" : ""
                         }`}
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <circle cx="12" cy="12" r="10" />
-                          <line x1="12" y1="16" x2="12" y2="12" />
-                          <line x1="12" y1="8" x2="12.01" y2="8" />
-                        </svg>
-                        <span className="text-xs whitespace-nowrap">Learn more</span>
+                        <span className="text-xs whitespace-nowrap">{isInfoOpen ? "Close" : "Learn more"}</span>
                       </div>
                     </button>
                     {isInfoOpen && (
@@ -2615,9 +2672,9 @@ return (
                       <span className={`text-xs font-bold transition-colors duration-300 px-2.5 py-0.5 rounded-full ${
                         tolerance === 0 ? "bg-red-50 text-red-600" : 
                         tolerance === 1 ? "bg-orange-50 text-orange-600" : 
-                        tolerance === 2 ? "bg-amber-50 text-amber-600" : 
+                        tolerance === 2 ? "bg-yellow-50 text-yellow-600" : 
                         tolerance === 3 ? "bg-green-50 text-green-600" : 
-                        "bg-emerald-100 text-emerald-700"
+                        "bg-sky-100 text-sk-700"
                       }`}>
                         {toleranceLabels[tolerance]}
                       </span>
@@ -2632,7 +2689,7 @@ return (
 
                   <div className="relative">
                     {/* Gradient track */}
-                    <div className="absolute top-1/2 left-0 right-0 h-2 -translate-y-1/2 rounded-lg pointer-events-none bg-gradient-to-r from-red-400 via-amber-400 via-green-400 to-emerald-500" />
+                    <div className="absolute top-1/2 left-0 right-0 h-2 -translate-y-1/2 rounded-lg pointer-events-none bg-gradient-to-r from-red-400 via-yellow-400 via-green-400 to-sky-400" />
                     {/* Tick marks */}
                     <div className="absolute top-1/2 left-0 right-0 h-2 -translate-y-1/2 flex justify-between px-[2px] pointer-events-none">
                       {[0, 1, 2, 3, 4].map(i => (
