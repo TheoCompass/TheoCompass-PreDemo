@@ -151,15 +151,21 @@ function getTraitTags(
   });
 }
 
-// Tier styling helper
+// Tier styling helper — 5 tiers from 0–100
 function getTierStyle(percentage: number): {
   badge: string;
   bg: string;
   barColor: string;
+  barGradient?: string;
+  borderColor: string;
+  textColor: string;
+  hex: string;
 } {
-  if (percentage >= 85) return { badge: "Strong Affinity", bg: "bg-emerald-50/60", barColor: "bg-emerald-500" };
-  if (percentage >= 70) return { badge: "Significant Overlap", bg: "bg-amber-50/60", barColor: "bg-amber-400" };
-  return { badge: "Moderate Resonance", bg: "bg-slate-50/60", barColor: "bg-slate-400" };
+  if (percentage >= 90) return { badge: "Near Perfect Match",    bg: "bg-amber-50/60",   barColor: "", barGradient: "bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500", borderColor: "border-amber-200", textColor: "text-amber-700", hex: "#f59e0b" };
+  if (percentage >= 75) return { badge: "Strong Affinity",       bg: "bg-emerald-50/60", barColor: "bg-emerald-500", borderColor: "border-emerald-200", textColor: "text-emerald-700", hex: "#10b981" };
+  if (percentage >= 60) return { badge: "Significant Overlap",   bg: "bg-sky-50/60",     barColor: "bg-sky-500",   borderColor: "border-sky-200",     textColor: "text-sky-700",     hex: "#0ea5e9" };
+  if (percentage >= 40) return { badge: "Moderate Resonance",    bg: "bg-slate-50/60",   barColor: "bg-slate-400",  borderColor: "border-slate-200",  textColor: "text-slate-600",  hex: "#94a3b8" };
+  return                     { badge: "Light Alignment",         bg: "bg-stone-50/60",   barColor: "bg-stone-400",  borderColor: "border-stone-200",  textColor: "text-stone-600",  hex: "#a8a29e" };
 }
 
 // --- COMPONENT: Expandable Denomination Card (Enhanced) ---
@@ -176,14 +182,9 @@ export function DenominationCard({
   const tier = getTierStyle(denom.matchPercentage);
   const tags = getTraitTags(denom.dimCoords, userCoords);
 
-  const tierAccentColor =
-    tier.badge === "Strong Affinity" ? "#10b981" :
-    tier.badge === "Significant Overlap" ? "#f59e0b" :
-    "#94a3b8";
-
   return (
     <div className="bg-white border border-slate-200 rounded-xl shadow-sm mb-3 overflow-hidden transition-all duration-200 hover:border-slate-300 hover:shadow-md border-l-4"
-      style={{ borderLeftColor: tierAccentColor }}
+      style={{ borderLeftColor: tier.hex }}
     >
       <button
         type="button"
@@ -201,13 +202,7 @@ export function DenominationCard({
               <h4 className={`font-bold text-sm transition-colors ${isOpen ? "text-blue-700" : "text-slate-800"}`}>
                 {denom.name}
               </h4>
-              <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${
-                tier.badge === "Strong Affinity"
-                  ? "text-emerald-700 bg-emerald-50 border-emerald-200"
-                  : tier.badge === "Significant Overlap"
-                  ? "text-amber-700 bg-amber-50 border-amber-200"
-                  : "text-slate-600 bg-slate-50 border-slate-200"
-              }`}>
+              <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${tier.textColor} ${tier.bg} ${tier.borderColor}`}>
                 {tier.badge}
               </span>
             </div>
@@ -305,9 +300,10 @@ export function DenominationCard({
 
 export function FamilyCard({ familyData, rank }: { familyData: any, rank: number }) {
   const [isOpen, setIsOpen] = useState(false);
+  const famTier = getTierStyle(familyData.matchPercentage ?? 0);
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl shadow-sm mb-3 overflow-hidden transition-all duration-200 hover:border-slate-300 hover:shadow-md border-l-4 border-l-purple-400">
+    <div className={`bg-white border rounded-xl shadow-sm mb-3 overflow-hidden transition-all duration-200 hover:shadow-md border-l-4 ${famTier.borderColor}`}>
       <div
         className="p-4 flex justify-between items-center cursor-pointer select-none hover:bg-slate-50/60 text-left transition-colors"
         onClick={() => setIsOpen(!isOpen)}
@@ -326,7 +322,7 @@ export function FamilyCard({ familyData, rank }: { familyData: any, rank: number
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <div className="font-bold text-sm text-slate-600 bg-slate-100 px-3 py-1 rounded-lg">
+          <div className={`font-bold text-sm ${famTier.textColor} ${famTier.bg} px-3 py-1 rounded-lg`}>
             {familyData.matchPercentage}%
           </div>
           <div className={`text-slate-400 transform transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>
@@ -339,12 +335,15 @@ export function FamilyCard({ familyData, rank }: { familyData: any, rank: number
         <div className="px-4 pb-4 pt-1 border-t border-slate-100 bg-slate-50/80">
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3 mt-3">Specific Denominations in Family</p>
           <div className="flex flex-col gap-1.5">
-            {familyData.allDenominations.slice(0, 5).map((denom: any) => (
+            {familyData.allDenominations.slice(0, 5).map((denom: any) => {
+              const denomTier = getTierStyle(denom.matchPercentage ?? 0);
+              return (
               <div key={denom.id} className="flex justify-between items-center bg-white p-2.5 rounded-lg border border-slate-100">
                  <span className="text-sm font-medium text-slate-700">{denom.name}</span>
-                 <span className="text-sm font-bold text-blue-600">{denom.matchPercentage}%</span>
+                 <span className={`text-sm font-bold ${denomTier.textColor}`}>{denom.matchPercentage}%</span>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -375,6 +374,7 @@ export default function QuizPage() {
   const [familyMatches, setFamilyMatches] = useState<any[]>([]);
   const [userCoords, setUserCoords] = useState<Record<string, number>>({});
   const [showSpecific, setShowSpecific] = useState(false);
+  const [showTopFamilyDenoms, setShowTopFamilyDenoms] = useState(false);
   const [userTolerance, setUserTolerance] = useState<number>(50);
   const [userLabels, setUserLabels] = useState([]);
   const [isCalculating, setIsCalculating] = useState(false);
@@ -454,6 +454,7 @@ export default function QuizPage() {
         setUserCoords(data.userDimCoords);
         setUserTolerance(data.userTolerance);
         setUserLabels(data.userLabels);
+        setSelectedMode(data.selectedMode || null);
         setCurrentView("results");
         setIsLoaded(true);
         return; // Exit early, we are done!
@@ -648,10 +649,10 @@ export default function QuizPage() {
         
         if (data.status === "success") {
           setResults(data.matches); 
+          setFamilyMatches(data.familyMatches || []);
           setUserCoords(data.userDimCoords || {});
           setUserTolerance(data.userTolerance ?? 50);
           setUserLabels(data.userLabels || []);
-
             // ✅ CLEAN TRACKING
             trackEvent('quiz_complete', {
               quiz_mode: selectedMode || 'quick',
@@ -670,6 +671,7 @@ export default function QuizPage() {
              userDimCoords: data.userDimCoords,
              userTolerance: data.userTolerance ?? 50,
              userLabels: data.userLabels,
+             selectedMode: selectedMode,
              timestamp: new Date().getTime() // Optional versioning
           }));
 
@@ -1796,9 +1798,15 @@ if (currentView === 'results') {
               )}
 
               {/* HERO / TOP RESULT */}
-              {(displayFamilies ? familyMatches.length > 0 : results.length > 0) && (
-                <div className="bg-white rounded-2xl border-2 border-blue-600 shadow-xl overflow-hidden mb-8 relative">
-                  <div className="absolute top-0 right-0 bg-blue-600 text-white font-bold px-4 py-1 rounded-bl-lg text-sm shadow-sm">
+              {(displayFamilies ? familyMatches.length > 0 : results.length > 0) && (() => {
+                const topPct = displayFamilies ? (topFamily?.matchPercentage ?? 0) : (topDenom?.matchPercentage ?? 0);
+                const heroTier = getTierStyle(topPct);
+                const isTopScore95 = topPct >= 95;
+                return (
+                <div className={`bg-white rounded-2xl border-2 shadow-xl overflow-hidden mb-8 relative ${heroTier.borderColor} ${isTopScore95 ? 'ring-2 ring-amber-300/50 ring-offset-4 ring-offset-slate-50' : ''}`}>
+                  <div className={`absolute top-0 right-0 font-bold px-4 py-1 rounded-bl-lg text-sm shadow-sm text-white`}
+                    style={{ background: `linear-gradient(135deg, ${heroTier.hex}, ${heroTier.hex}CC)` }}
+                  >
                     #1 Match
                   </div>
 
@@ -1807,7 +1815,7 @@ if (currentView === 'results') {
                       <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
                         {topSubtitle}
                       </div>
-                      <h2 className="font-serif text-2xl md:text-4xl font-bold text-blue-900">
+                      <h2 className="font-serif text-2xl md:text-4xl font-bold" style={{ color: heroTier.hex }}>
                         {topName}
                       </h2>
                       <div className="mt-2 text-sm text-slate-500 font-medium">
@@ -1815,9 +1823,9 @@ if (currentView === 'results') {
                       </div>
                     </div>
 
-                    <div className="flex flex-col items-center justify-center bg-blue-50 rounded-full w-32 h-32 border-4 border-blue-100 shrink-0 shadow-inner">
-                      <span className="text-3xl font-bold text-blue-700">{topScore}%</span>
-                      <span className="text-xs text-blue-500 uppercase font-bold tracking-widest mt-1">
+                    <div className={`flex flex-col items-center justify-center rounded-full w-32 h-32 border-4 shrink-0 shadow-inner ${heroTier.bg} ${heroTier.borderColor}`}>
+                      <span className={`text-3xl font-bold ${heroTier.textColor} ${isTopScore95 ? 'animate-pulse' : ''}`}>{topScore}%</span>
+                      <span className={`text-xs uppercase font-bold tracking-widest mt-1 ${heroTier.textColor.replace('text-', 'text-').replace('700', '500').replace('600', '400').replace('500', '400')}`}>
                         Match
                       </span>
                     </div>
@@ -1828,29 +1836,103 @@ if (currentView === 'results') {
                       {topDescription}
                     </p>
 
-                    {displayFamilies && topFamily?.topDenomination && (
-                      <div className="mt-4 bg-white border border-slate-200 rounded-xl p-4">
-                        <div className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-1">
-                          Best specific denomination inside this family
-                        </div>
-                        <div className="flex items-center justify-between gap-4">
-                          <div>
-                            <div className="font-semibold text-slate-800">
-                              {topFamily.topDenomination.name}
+                    {displayFamilies && topFamily?.topDenomination && (() => {
+                      const topDenomPct = topFamily.topDenomination.matchPercentage ?? 0;
+                      const denomTier = getTierStyle(topDenomPct);
+                      return (
+                      <div className="mt-4 bg-white border border-slate-200 rounded-xl overflow-hidden">
+                        {/* Top denomination (always visible) */}
+                        <div className="p-4 border-b border-slate-100">
+                          <div className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-1">
+                            Best specific denomination inside this family
+                          </div>
+                          <div className="flex items-center justify-between gap-4">
+                            <div>
+                              <div className={`font-semibold text-slate-800`}>
+                                {topFamily.topDenomination.name}
+                              </div>
+                              <div className="text-sm text-slate-500">
+                                {topFamily.family}
+                              </div>
                             </div>
-                            <div className="text-sm text-slate-500">
-                              {topFamily.family}
+                            <div className={`font-bold ${denomTier.textColor}`}>
+                              {topFamily.topDenomination.matchPercentage}%
                             </div>
                           </div>
-                          <div className="font-bold text-blue-700">
-                            {topFamily.topDenomination.matchPercentage}%
+                          {/* Visual progress bar */}
+                          <div className="mt-3 w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-700 ease-out ${denomTier.barGradient || denomTier.barColor}`}
+                              style={{ width: `${Math.min(topDenomPct, 100)}%` }}
+                            />
                           </div>
                         </div>
+
+                        {/* Expandable: all denominations in this family */}
+                        {topFamily.allDenominations && topFamily.allDenominations.length > 1 && (
+                          <>
+                            <div
+                              className="px-4 py-2.5 flex items-center justify-between cursor-pointer select-none hover:bg-slate-50/60 transition-colors text-left"
+                              onClick={() => setShowTopFamilyDenoms(!showTopFamilyDenoms)}
+                            >
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                Show the top 5 Denominations in Family
+                              </span>
+                              <div className={`text-slate-400 transform transition-transform duration-300 ${showTopFamilyDenoms ? 'rotate-180' : ''}`}>
+                                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                              </div>
+                            </div>
+                            {showTopFamilyDenoms && (
+                              <div className="px-4 pb-4 pt-1 bg-slate-50/80 border-t border-slate-100">
+                                <div className="flex flex-col gap-1.5">
+                                  {topFamily.allDenominations.slice(0, 5).map((denom: any) => {
+                                    const rowTier = getTierStyle(denom.matchPercentage ?? 0);
+                                    return (
+                                    <div key={denom.id} className="flex justify-between items-center bg-white p-2.5 rounded-lg border border-slate-100">
+                                      <span className="text-sm font-medium text-slate-700">{denom.name}</span>
+                                      <span className={`text-sm font-bold ${rowTier.textColor}`}>{denom.matchPercentage}%</span>
+                                    </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        )}
                       </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 </div>
-              )}
+                );
+              })()}
+
+              {/* TIER LEGEND */}
+              <div className="bg-white border border-slate-200 rounded-xl p-4 mb-6 shadow-sm">
+                <h4 className="text-xs font-bold uppercase text-slate-500 mb-3 tracking-wider flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  Match Tier Legend
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                  {[
+                    { range: "90–100%", badge: "Near Perfect Match", bg: "bg-amber-50/60", borderColor: "border-amber-200", barColor: "bg-amber-400", barGradient: "bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500", hex: "#f59e0b" },
+                    { range: "75–89%",  badge: "Strong Affinity",    bg: "bg-emerald-50/60", borderColor: "border-emerald-200", barColor: "bg-emerald-500", hex: "#10b981" },
+                    { range: "60–74%",  badge: "Significant Overlap", bg: "bg-sky-50/60",    borderColor: "border-sky-200",     barColor: "bg-sky-500",    hex: "#0ea5e9" },
+                    { range: "40–59%",  badge: "Moderate Resonance",  bg: "bg-slate-50/60",  borderColor: "border-slate-200",  barColor: "bg-slate-400",  hex: "#94a3b8" },
+                    { range: "0–39%",   badge: "Light Alignment",     bg: "bg-stone-50/60",  borderColor: "border-stone-200",  barColor: "bg-stone-400",  hex: "#a8a29e" },
+                  ].map(t => (
+                    <div key={t.badge} className={`flex items-center gap-2 p-2 rounded-lg ${t.bg} ${t.borderColor} border`}>
+                      <div className={`w-3 h-3 rounded-full shrink-0 ${t.barGradient || t.barColor}`} />
+                      <div className="min-w-0">
+                        <div className={`text-[10px] font-bold leading-tight truncate`}>
+                          {t.badge}
+                        </div>
+                        <div className="text-[9px] text-slate-400 leading-tight">{t.range}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
               {/* RUNNER UPS */}
               <h3 className="font-bold text-slate-800 mb-4 text-lg border-b pb-2">
