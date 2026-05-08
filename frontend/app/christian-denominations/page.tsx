@@ -48,6 +48,12 @@ const AXIS_LABELS: Record<string, { left: string, right: string, desc: string }>
   intellectexper: { left: "Experiential", right: "Intellectual", desc: "Primary mode of knowing God" }
 };
 
+// Map DB axis keys (with underscores) to frontend axis keys (no underscores)
+// DB: theol_cons_lib_avg → frontend: theolconslib
+function normalizeAxisKey(dbKey: string): string {
+  return dbKey.replace(/_avg$/, "").replace(/_/g, "");
+}
+
 // --- FINGERPRINT CATEGORY GROUPING ---
 const FINGERPRINT_CATEGORIES = {
   Theology: {
@@ -67,6 +73,66 @@ const FINGERPRINT_CATEGORIES = {
   },
 };
 
+// --- CONVICTION LEVEL HELPER ---
+function getConvictionStyle(score: number): {
+  level: string;
+  color: string;
+  bgColor: string;
+  dotColor: string;
+  ringColor: string;
+  animate: string;
+} {
+  if (score > 90 || score < 10) {
+    return {
+      level: "Extreme",
+      color: "text-purple-700",
+      bgColor: "bg-purple-100",
+      dotColor: "bg-purple-500",
+      ringColor: "ring-purple-300",
+      animate: "animate-pulse",
+    };
+  }
+  if (score > 75 || score < 25) {
+    return {
+      level: "Strong",
+      color: "text-red-700",
+      bgColor: "bg-red-100",
+      dotColor: "bg-red-500",
+      ringColor: "ring-red-300",
+      animate: "animate-float",
+    };
+  }
+  if (score > 60 || score < 40) {
+    return {
+      level: "Moderate",
+      color: "text-amber-700",
+      bgColor: "bg-amber-100",
+      dotColor: "bg-amber-500",
+      ringColor: "ring-amber-300",
+      animate: "",
+    };
+  }
+  return {
+    level: "Neutral",
+    color: "text-slate-600",
+    bgColor: "bg-slate-100",
+    dotColor: "bg-slate-500",
+    ringColor: "ring-slate-300",
+    animate: "",
+  };
+}
+
+// --- CONVICTION SWATCH COMPONENT (for legend) ---
+function ConvictionSwatch({ score, label }: { score: number; label: string }) {
+  const style = getConvictionStyle(score);
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className={`inline-block w-2.5 h-2.5 rounded-full ${style.dotColor} ${style.animate || ""}`} />
+      <span className="text-slate-500">{label}</span>
+    </div>
+  );
+}
+
 // Compute which axes are most extreme (closest to 0 or 100)
 function getDistinctiveAxes(userCoords: Record<string, number>, count: number = 3): string[] {
   return Object.entries(userCoords)
@@ -78,20 +144,6 @@ function getDistinctiveAxes(userCoords: Record<string, number>, count: number = 
     })
     .slice(0, count)
     .map(([key]) => key);
-}
-
-// Compute macro ring scores from user coords
-function computeMacroRingScores(userCoords: Record<string, number>): { name: string; score: number; dominantPole: "left" | "right" }[] {
-  const result: { name: string; score: number; dominantPole: "left" | "right" }[] = [];
-  for (const [catName, catData] of Object.entries(FINGERPRINT_CATEGORIES)) {
-    const scores = catData.axes
-      .map((axis) => userCoords[axis])
-      .filter((s) => s !== undefined && s !== null) as number[];
-    if (scores.length === 0) continue;
-    const avg = scores.reduce((sum, s) => sum + s, 0) / scores.length;
-    result.push({ name: catData.label, score: Math.round(avg), dominantPole: avg <= 50 ? "right" : "left" });
-  }
-  return result;
 }
 
 // --- QUIZ CATEGORY LABELS ---
@@ -378,9 +430,75 @@ export default function QuizPage() {
   const [userTolerance, setUserTolerance] = useState<number>(50);
   const [userLabels, setUserLabels] = useState([]);
   const [isCalculating, setIsCalculating] = useState(false);
-  const [showCompare, setShowCompare] = useState(false);
+  const [compareDenomId, setCompareDenomId] = useState<string | null>(null);
   const [expandedAxis, setExpandedAxis] = useState<string | null>(null);
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
+
+  // --- COORDINATES LOOKUP (for comparison) ---
+  const [allCoordinates, setAllCoordinates] = useState<Map<string, {
+    name: string;
+    family: string;
+    dimCoords: Record<string, number>;
+  }>>(new Map());
+
+  // --- FETCH COORDINATES & MERGE INTO RESULTS ---
+  useEffect(() => {
+    if (currentView !== "results" || results.length === 0) return;
+
+    const fetchCoordinates = async () => {
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL!;
+        const res = await fetch(`${apiUrl}/api/coordinates`);
+        if (!res.ok) return;
+        const rows: any[] = await res.json();
+
+        // Build lookup map: key = denomination_id
+        const map = new Map<string, {
+          name: string;
+          family: string;
+          dimCoords: Record<string, number>;
+        }>();
+
+        for (const row of rows) {
+          if (row.mode !== "quick") continue; // use quick mode
+          const denomId = row.denomination_id;
+          if (map.has(denomId)) continue; // only first (quick) entry
+
+          const dimCoords: Record<string, number> = {};
+          for (const key of Object.keys(row)) {
+            if (key.endsWith("_avg")) {
+              const shortKey = normalizeAxisKey(key);
+              if (AXIS_LABELS[shortKey]) {
+                dimCoords[shortKey] = row[key];
+              }
+            }
+          }
+
+          map.set(denomId, {
+            name: row.name || denomId,
+            family: row.family || "",
+            dimCoords,
+          });
+        }
+
+        setAllCoordinates(map);
+
+        // Merge dimCoords into existing results
+        const enriched = results.map((r: any) => {
+          const coord = map.get(r.id);
+          if (coord && coord.dimCoords && Object.keys(coord.dimCoords).length > 0) {
+            return { ...r, dimCoords: coord.dimCoords };
+          }
+          return r;
+        });
+        setResults(enriched);
+      } catch (err) {
+        console.error("Failed to fetch coordinates", err);
+      }
+    };
+
+    fetchCoordinates();
+  }, [currentView, results.length]);
 
   // --- SCREENSHOT REF ---
   const exportRef = useRef<HTMLDivElement>(null);
@@ -1958,57 +2076,60 @@ if (currentView === 'results') {
                   Click any axis or toggle compare to see how you line up with your top match.
                 </p>
 
-                {/* === SUMMARY MACRO RING === */}
-                {Object.keys(userCoords).length > 0 && (
-                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm mb-6">
-                    <div className="flex items-center justify-center gap-6 md:gap-10 flex-wrap">
-                      {computeMacroRingScores(userCoords).map((macro) => {
-                        const intensity = Math.abs(macro.score - 50) / 50;
-                        const arcDeg = intensity * 180;
-                        const rotate = macro.dominantPole === "left" ? 0 : -arcDeg;
-                        const color = macro.name === "Theology"
-                          ? (macro.dominantPole === "left" ? "#2563eb" : "#1e40af")
-                          : macro.name === "Practice"
-                          ? (macro.dominantPole === "left" ? "#7c3aed" : "#5b21b6")
-                          : (macro.dominantPole === "left" ? "#059669" : "#047857");
-                        return (
-                          <div key={macro.name} className="flex flex-col items-center gap-1.5">
-                            <div className="relative w-20 h-10 overflow-hidden">
-                              <svg viewBox="0 0 80 40" className="w-full h-full">
-                                <circle cx="40" cy="40" r="32" fill="none" stroke="#e2e8f0" strokeWidth="8" />
-                                <circle
-                                  cx="40" cy="40" r="32" fill="none" stroke={color} strokeWidth="8"
-                                  strokeDasharray={`${Math.PI * 32}`}
-                                  strokeDashoffset={`${Math.PI * 32 * (1 - intensity)}`}
-                                  transform="rotate(-90 40 40)"
-                                  style={{ transition: "stroke-dashoffset 0.8s ease-out" }}
-                                />
-                              </svg>
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <span className="text-xs font-bold text-slate-700">{macro.score}</span>
-                              </div>
-                            </div>
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{macro.name}</span>
-                            <span className="text-[9px] text-slate-400">{macro.dominantPole === "left" ? "Left-leaning" : "Right-leaning"}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* === COMPARISON TOGGLE + DISTINCTIVE VIEWS === */}
+                {/* === COMPARISON DROPDOWN + DISTINCTIVE VIEWS === */}
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                  <button
-                    onClick={() => setShowCompare(!showCompare)}
-                    className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${
-                      showCompare
-                        ? "bg-blue-600 text-white shadow-md"
-                        : "bg-white border border-slate-300 text-slate-600 hover:border-blue-400 hover:text-blue-700"
-                    }`}
-                  >
-                    {showCompare ? "Hide Comparison" : `Compare with ${results[0]?.name ?? "Top Match"}`}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Compare:</span>
+                    <select
+                      value={compareDenomId ?? ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCompareDenomId(val === "" ? null : val);
+                      }}
+                      className="px-3 py-2 rounded-full text-sm font-medium border border-slate-300 bg-white text-slate-700 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-all cursor-pointer"
+                    >
+                      <option value="">— None —</option>
+                      {allCoordinates.size > 0
+                        ? Array.from(allCoordinates.entries())
+                            .sort((a, b) => a[1].name.localeCompare(b[1].name))
+                            .map(([id, data]) => (
+                              <option key={id} value={id}>
+                                {data.name}
+                              </option>
+                            ))
+                        : results.map((denom: any) => (
+                            <option key={denom.id} value={denom.id}>
+                              {denom.name} ({denom.matchPercentage}%)
+                            </option>
+                          ))}
+                    </select>
+                  </div>
+
+                  {/* === COMPARISON LEGEND (visible when a denomination is selected) === */}
+                  {compareDenomId !== null && (
+                    <div className="w-full bg-slate-50 rounded-lg p-3 mb-3 animate-fade-in border border-slate-200/60">
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full border-2 border-white shadow-sm bg-slate-800 shrink-0" />
+                          <span className="text-slate-600">Your Position — <span className="font-semibold text-slate-800">colored by conviction</span></span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 bg-indigo-500 border border-white rotate-45 shadow-sm shrink-0" />
+                          <span className="text-slate-600"><span className="font-semibold text-slate-800">{allCoordinates.get(compareDenomId)?.name || compareDenomId}</span> (indigo diamond)</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-8 h-0.5 rounded bg-purple-400/60 shrink-0" />
+                          <span className="text-slate-500">Gap between positions</span>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 pt-2 border-t border-slate-200/60 text-[11px]">
+                        <ConvictionSwatch score={5} label="Extreme (<10 or >90)" />
+                        <ConvictionSwatch score={20} label="Strong (<25 or >75)" />
+                        <ConvictionSwatch score={50} label="Moderate (<40 or >60)" />
+                        <ConvictionSwatch score={55} label="Neutral (40–60)" />
+                      </div>
+                    </div>
+                  )}
 
                   {(() => {
                     const distinctive = getDistinctiveAxes(userCoords, 3);
@@ -2078,10 +2199,10 @@ if (currentView === 'results') {
                               const isDistinctive = getDistinctiveAxes(userCoords, 3).includes(axis);
                               const isZoomed = expandedAxis === axis;
 
-                              // Comparison data (top match)
-                              const topDenomData = results[0];
-                              const compareScore = topDenomData?.dimCoords?.[axis];
-                              const hasCompare = showCompare && compareScore !== undefined;
+                              // Comparison data (selected denomination from allCoordinates)
+                              const compareDenomCoord = compareDenomId !== null ? allCoordinates.get(compareDenomId) : undefined;
+                              const compareScore = compareDenomCoord?.dimCoords?.[axis];
+                              const hasCompare = compareDenomCoord !== undefined && compareScore !== undefined;
 
                               return (
                                 <div key={axis} className="mb-3 last:mb-0">
@@ -2106,31 +2227,31 @@ if (currentView === 'results') {
                                         </div>
                                       </div>
 
-                                      {/* User Lollipop Dot */}
+                                      {/* User Lollipop Dot (colored by conviction level) */}
                                       <div
-                                        className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-white shadow z-20 transition-all ${
-                                          isDistinctive
-                                            ? "bg-purple-500 ring-2 ring-purple-300 ring-offset-1 animate-pulse"
-                                            : "bg-slate-800"
-                                        }`}
+                                        className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-white shadow z-20 transition-all ${getConvictionStyle(score).dotColor} ${
+                                          getConvictionStyle(score).animate
+                                            ? `ring-2 ${getConvictionStyle(score).ringColor} ring-offset-1 ` + getConvictionStyle(score).animate
+                                            : ""
+                                        } ${isDistinctive ? "ring-offset-2" : ""}`}
                                         style={{ left: `${dotPercent}%` }}
                                       />
 
-                                      {/* Comparison Diamond (Top Match) */}
+                                      {/* Comparison Diamond (Selected Denomination — fixed indigo) */}
                                       {hasCompare && (
                                         <div
                                           className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 z-20"
                                           style={{ left: `${100 - compareScore}%` }}
-                                          title={topDenomData.name}
+                                          title={compareDenomCoord?.name}
                                         >
-                                          <div className="w-2.5 h-2.5 bg-amber-500 border border-white rotate-45 shadow-sm" />
+                                          <div className="w-2.5 h-2.5 bg-indigo-500 border border-white rotate-45 shadow-sm" />
                                         </div>
                                       )}
 
-                                      {/* Gap Indicator (when both present) */}
+                                      {/* Gap Indicator (when both present — colored by user conviction level) */}
                                       {hasCompare && (
                                         <div
-                                          className="absolute top-1/2 h-0.5 bg-red-400/60 z-10 rounded"
+                                          className={`absolute top-1/2 h-0.5 z-10 rounded ${getConvictionStyle(score).dotColor.replace('bg-', 'bg-').replace('-500', '-400/60')}`}
                                           style={{
                                             left: `${Math.min(dotPercent, 100 - compareScore)}%`,
                                             width: `${Math.abs(dotPercent - (100 - compareScore))}%`,
@@ -2154,15 +2275,18 @@ if (currentView === 'results') {
                                       <p className="text-slate-500 text-xs">
                                         Your position (<strong>{score}/100</strong>) leans toward{" "}
                                         <strong>{poleLabel}</strong>.
-                                        {Math.abs(score - 50) >= 40
-                                          ? " This is a strongly held conviction."
-                                          : Math.abs(score - 50) >= 20
+                                        {score > 90 || score < 10
+                                          ? " This is an extreme conviction."
+                                          : score > 75 || score < 25
+                                          ? " This is a strong conviction."
+                                          : score > 60 || score < 40
                                           ? " This is a moderate lean."
-                                          : " This is a balanced / near-neutral position."}
+                                          : " This is a neutral / balanced position."}
+                                        <span className={`ml-1.5 inline-block w-2 h-2 rounded-full ${getConvictionStyle(score).dotColor}`} />
                                       </p>
                                       {hasCompare && (
                                         <p className="text-slate-500 text-xs mt-1">
-                                          Your top match (<strong>{topDenomData.name}</strong>) scores{" "}
+                                          <strong>{compareDenomCoord?.name}</strong> scores{" "}
                                           <strong>{compareScore}/100</strong> on this axis —{" "}
                                           <span
                                             className={
