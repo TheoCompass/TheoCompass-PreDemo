@@ -173,7 +173,7 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
         async function fetchLandscape() {
             try {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL!;
-                const coordRes = await fetch(apiUrl + '/api/coordinates');
+                const coordRes = await fetch(apiUrl + '/api/coordinates?mode=quick');
                 const rawCoords = await coordRes.json();
                 setRawMapData(rawCoords);
             } catch (e) {
