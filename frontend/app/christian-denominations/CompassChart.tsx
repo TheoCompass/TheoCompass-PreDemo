@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceArea, ReferenceLine } from 'recharts';
-import { FAMILY_COLORS, FAMILY_METADATA } from '../../lib/taxonomy';
+import { FAMILY_COLORS, FAMILY_METADATA, FAMILY_GROUPS, GROUP_COLORS, FAMILY_TO_GROUP } from '../../lib/taxonomy';
 
 const AXIS_OPTIONS = [
     { key: 'theol_cons_lib_avg', label: 'Theology: Progressive ↔ Orthodox', minLabel: 'Progressive', maxLabel: 'Orthodox' },
@@ -31,9 +31,14 @@ const getFamilyKey = (family: string) => {
     return fallbackKey || null;
 };
 
-const getFamilyColor = (family: string) => {
+const getFamilyColor = (family: string, viewMode?: 'families' | 'denominations') => {
     const key = getFamilyKey(family);
-    return key ? FAMILY_COLORS[key] : '#64748b';
+    if (!key) return '#64748b';
+    if (viewMode === 'families') {
+        const group = FAMILY_TO_GROUP[key];
+        return group ? (GROUP_COLORS[group] || '#64748b') : '#64748b';
+    }
+    return FAMILY_COLORS[key] || '#64748b';
 };
 
 const getFamilyMeta = (family: string) => {
@@ -42,18 +47,19 @@ const getFamilyMeta = (family: string) => {
 };
 
 const CustomDot = (props: any) => {
-    const { cx, cy, payload, activeNodeName } = props;
+    const { cx, cy, payload, activeNodeName, isMobile, viewMode } = props;
     if (!cx || !cy) return null;
 
     const isUser = payload.isUser;
     const isActive = activeNodeName === payload.name;
+    const scale = isMobile ? 0.65 : 1;
     
-    let r = 5;
-    if (isUser) r = isActive ? 10 : 8;
-    else if (payload.isFamily) r = isActive ? 9 : 7;
-    else r = isActive ? 7 : 5;
+    let r = 5 * scale;
+    if (isUser) r = (isActive ? 10 : 8) * scale;
+    else if (payload.isFamily) r = (isActive ? 9 : 7) * scale;
+    else r = (isActive ? 7 : 5) * scale;
 
-    const fill = isUser ? '#ef4444' : getFamilyColor(payload.family);
+    const fill = isUser ? '#ef4444' : getFamilyColor(payload.family, viewMode);
     const stroke = isUser ? '#7f1d1d' : (isActive ? '#0f172a' : '#ffffff');
     const strokeWidth = isUser ? 3 : (isActive ? 2 : 1);
     const opacity = isUser ? 1 : (isActive ? 1 : 0.7);
@@ -76,7 +82,7 @@ const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: any[] 
         const meta = data.isFamily ? getFamilyMeta(data.name) : null;
 
         return (
-            <div className="bg-slate-900 text-white p-3.5 rounded-xl shadow-2xl border border-slate-700 text-sm max-w-[320px] w-[320px] z-50 relative pointer-events-none">
+            <div className="bg-slate-900 text-white p-2.5 sm:p-3.5 rounded-xl shadow-2xl border border-slate-700 text-xs sm:text-sm max-w-[240px] sm:max-w-[320px] w-[240px] sm:w-[320px] z-50 relative pointer-events-none">
                 <p className="font-bold text-base mb-1 text-blue-200 leading-tight">{data.name}</p>
                 
                 {data.isUser ? (
@@ -162,6 +168,15 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
     const activeNode = lockedNode || hoveredNode;
 
     const [selectedFamilies, setSelectedFamilies] = useState<string[]>([]);
+    const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
+    const [isMobile, setIsMobile] = useState(false);
+
+    useEffect(() => {
+        const check = () => setIsMobile(window.innerWidth < 640);
+        check();
+        window.addEventListener('resize', check);
+        return () => window.removeEventListener('resize', check);
+    }, []);
 
     useEffect(() => {
         setHoveredNode(null);
@@ -320,7 +335,7 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
                     <div className="flex items-center gap-4 mb-2">
                         <h3 className="font-serif text-2xl font-bold text-slate-800">Your Theological Compass</h3>
                         {!isExport && (
-                            <div className="flex bg-slate-100 rounded-lg p-1 border border-slate-200 ml-4 hidden sm:flex">
+                            <div className="flex bg-slate-100 rounded-lg p-1 border border-slate-200 ml-4">
                                 <button 
                                     onClick={() => setViewMode('families')}
                                     className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'families' ? 'bg-white text-blue-700 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
@@ -377,7 +392,7 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
             <div className="border border-slate-100 rounded-lg overflow-hidden bg-slate-50 relative">
                 <ResponsiveContainer width="100%" aspect={1} minHeight={0}>
                     <ScatterChart 
-                        margin={{ top: 40, right: 30, bottom: 30, left: 40 }}
+                        margin={isMobile ? { top: 14, right: 8, bottom: 14, left: 8 } : { top: 40, right: 30, bottom: 30, left: 40 }}
                         onClick={() => {
                             if (lockedNode) setLockedNode(null);
                         }}
@@ -400,8 +415,8 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
                             <ReferenceArea 
                                 x1={activeNode[`${xAxis}Min`]} x2={activeNode[`${xAxis}Max`]}
                                 y1={activeNode[`${yAxis}Min`]} y2={activeNode[`${yAxis}Max`]}
-                                fillOpacity={0.15} fill={getFamilyColor(activeNode.family)} 
-                                stroke={getFamilyColor(activeNode.family)} strokeOpacity={0.6} strokeDasharray="3 3"
+                                fillOpacity={0.15} fill={getFamilyColor(activeNode.family, viewMode)} 
+                                stroke={getFamilyColor(activeNode.family, viewMode)} strokeOpacity={0.6} strokeDasharray="3 3"
                             />
                         )}
 
@@ -410,7 +425,7 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
                         
                         <Scatter 
                             data={chartData} 
-                            shape={(props) => <CustomDot {...props} activeNodeName={activeNode?.name} />} 
+                            shape={(props) => <CustomDot {...props} activeNodeName={activeNode?.name} isMobile={isMobile} viewMode={viewMode} />} 
                             isAnimationActive={true} 
                             animationDuration={600} 
                             animationEasing="ease-out"
@@ -428,36 +443,88 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
                     </ScatterChart>
                 </ResponsiveContainer>
 
-                <div className="absolute bottom-2 left-16 text-[10px] font-bold text-slate-500 uppercase tracking-wide bg-white/70 px-1 rounded pointer-events-none">{xObj?.minLabel}</div>
-                <div className="absolute bottom-2 right-4 text-[10px] font-bold text-slate-500 uppercase tracking-wide bg-white/70 px-1 rounded pointer-events-none">{xObj?.maxLabel}</div>
-                <div className="absolute top-15 left-4 text-[10px] font-bold text-slate-500 uppercase tracking-wide bg-white/70 px-1 rounded origin-top-left -rotate-90 translate-y-20 pointer-events-none">{yObj?.maxLabel}</div>
-                <div className="absolute bottom-16 left-8 text-[10px] font-bold text-slate-500 uppercase tracking-wide bg-white/70 px-1 rounded origin-bottom-left -rotate-90 pointer-events-none">{yObj?.minLabel}</div>
+                <div className="absolute bottom-0.5 sm:bottom-2 left-1 sm:left-16 text-[7px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wide bg-white/70 px-0.5 sm:px-1 rounded pointer-events-none">{xObj?.minLabel}</div>
+                <div className="absolute bottom-0.5 sm:bottom-2 right-0.5 sm:right-4 text-[7px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wide bg-white/70 px-0.5 sm:px-1 rounded pointer-events-none">{xObj?.maxLabel}</div>
+                <div className="absolute top-1 sm:top-15 left-0.5 sm:left-4 text-[7px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wide bg-white/70 px-0.5 sm:px-1 rounded origin-top-left -rotate-90 translate-y-10 sm:translate-y-20 pointer-events-none">{yObj?.maxLabel}</div>
+                <div className="absolute bottom-2 sm:bottom-16 left-0.5 sm:left-8 text-[7px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wide bg-white/70 px-0.5 sm:px-1 rounded origin-bottom-left -rotate-90 pointer-events-none">{yObj?.minLabel}</div>
             </div>
 
-            <div className="mt-8 flex flex-col items-center border-t border-slate-100 pt-6">
+            <div className="mt-8 border-t border-slate-100 pt-6">
                 {viewMode === 'denominations' && !isExport && (
-                    <p className="text-xs text-slate-500 mb-4 font-medium italic bg-blue-50 text-blue-700 px-3 py-1.5 rounded-md border border-blue-100">
+                    <p className="text-xs text-slate-500 mb-4 font-medium italic bg-blue-50 text-blue-700 px-3 py-1.5 rounded-md border border-blue-100 text-center">
                         Click on the traditions below to isolate them on the chart.
                     </p>
                 )}
-                <div className="flex flex-wrap gap-x-5 gap-y-3 text-[11px] justify-center text-slate-700 max-w-4xl mx-auto">
-                    <span className="flex items-center gap-1.5 font-bold">
+                
+                <div className="flex items-center gap-2 mb-4 justify-center">
+                    <span className="flex items-center gap-1.5 font-bold text-[11px]">
                         <div className="w-4 h-4 rounded-full bg-[#ef4444] border-2 border-[#7f1d1d]"></div>You
                     </span>
-                    {Object.entries(FAMILY_COLORS).map(([name, color]) => {
-                        const isSelected = selectedFamilies.length === 0 || selectedFamilies.includes(name);
-                        return (
-                            <span 
-                                key={name} 
-                                onClick={() => toggleLegendFilter(name)}
-                                className={`flex items-center gap-1.5 font-medium whitespace-nowrap transition-opacity duration-200 ${viewMode === 'denominations' && !isExport ? 'cursor-pointer hover:opacity-80' : ''} ${isSelected ? 'opacity-100' : 'opacity-30'}`}
-                            >
-                                <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: color }}></div>
-                                {name.replace(' / ', '/')}
-                            </span>
-                        );
-                    })}
                 </div>
+
+                {viewMode === 'families' || isExport ? (
+                    <div className="flex items-center justify-center gap-x-5 gap-y-2 flex-wrap max-w-2xl mx-auto">
+                        {FAMILY_GROUPS.map((group) => {
+                            const groupColor = GROUP_COLORS[group.category] || '#64748b';
+                            return (
+                                <span key={group.category} className="flex items-center gap-1.5 text-xs font-medium text-slate-600 whitespace-nowrap">
+                                    <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ backgroundColor: groupColor }}></div>
+                                    {group.category}
+                                </span>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <div className="space-y-2 max-w-2xl mx-auto">
+                        {FAMILY_GROUPS.map((group) => {
+                            const groupKey = group.category;
+                            const isExpanded = expandedGroups.includes(groupKey) || isExport;
+                            const allFamiliesSelected = selectedFamilies.length === 0 || group.families.some(f => selectedFamilies.includes(f));
+                            
+                            return (
+                                <div key={groupKey} className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm">
+                                    <button
+                                        onClick={() => {
+                                            if (!isExport) {
+                                                setExpandedGroups(prev => prev.includes(groupKey) ? prev.filter(g => g !== groupKey) : [...prev, groupKey]);
+                                            }
+                                        }}
+                                        className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold transition-colors ${allFamiliesSelected ? 'text-slate-800 hover:bg-slate-50' : 'text-slate-400'} cursor-pointer`}
+                                    >
+                                        <span className="flex items-center gap-2">
+                                            <svg className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                                            </svg>
+                                            {group.category}
+                                            <span className="text-[10px] text-slate-400 font-normal ml-2">{group.families.length} traditions</span>
+                                        </span>
+                                    </button>
+                                    
+                                    {isExpanded && (
+                                        <div className="px-3 pb-2.5 pt-1 flex flex-wrap gap-x-3 gap-y-1.5 text-[11px] bg-slate-50/50 border-t border-slate-100">
+                                            {group.families.map(famName => {
+                                                const famKey = getFamilyKey(famName) || famName;
+                                                const color = getFamilyColor(famName);
+                                                const isSelected = selectedFamilies.length === 0 || selectedFamilies.includes(famKey);
+                                                
+                                                return (
+                                                    <span
+                                                        key={famName}
+                                                        onClick={() => toggleLegendFilter(famKey)}
+                                                        className={`flex items-center gap-1.5 font-medium whitespace-nowrap transition-opacity duration-200 cursor-pointer hover:opacity-80 ${isSelected ? 'opacity-100' : 'opacity-30'}`}
+                                                    >
+                                                        <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: color }}></div>
+                                                        {famName.replace(' / ', '/')}
+                                                    </span>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
         </div>
     );

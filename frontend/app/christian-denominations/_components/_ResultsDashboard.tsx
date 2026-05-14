@@ -299,7 +299,7 @@ export function ResultsDashboard({
               ))
             ) : (
               results.slice(1).map((denom: any, index: number) => (
-                <DenominationCard key={denom.id} denom={denom} rank={index + 2} userCoords={userCoords} />
+                <DenominationCard key={denom.id} denom={denom} rank={index + 2} />
               ))
             )}
           </div>
@@ -556,10 +556,6 @@ export function ResultsDashboard({
 
           {/* 2D COMPASS CHART */}
           <div className="mb-16">
-            <h3 className="font-serif text-2xl font-bold text-slate-800 mb-2">Tradition Compass</h3>
-            <p className="text-slate-600 mb-4 text-sm">
-              See where you land among major Christian traditions on the socio-theological map.
-            </p>
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <CompassChart 
                 userCoords={userCoords} 
@@ -570,13 +566,7 @@ export function ResultsDashboard({
 
           {/* THEOLOGICAL LABEL CLOUD */}
           <div className="mb-16">
-            <h3 className="font-serif text-2xl font-bold text-slate-800 mb-2">Your Theological Labels</h3>
-            <p className="text-slate-600 mb-4 text-sm">
-              Key descriptors that emerge from your belief patterns, sized by conviction strength.
-            </p>
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <TheologicalLabelCloud userLabels={userLabels} />
-            </div>
+            <TheologicalLabelCloud userLabels={userLabels} />
           </div>
 
           {/* NEXT STEPS & SHARE FOOTER */}
