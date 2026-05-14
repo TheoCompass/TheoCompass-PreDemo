@@ -12,6 +12,7 @@ export const AXIS_LABELS: Record<string, { left: string; right: string; desc: st
   sacramfunct: { left: "Functional/Symbolic", right: "Sacramental", desc: "Efficacy of Baptism and Communion" },
   literalcrit: { left: "Critical", right: "Literal", desc: "Method of reading the Bible" },
   intellectexper: { left: "Experiential", right: "Intellectual", desc: "Primary mode of knowing God" },
+  tolerance: { left: "Accepting", right: "Dogmatic", desc: "Openness to other Christian traditions as valid expressions of faith" },
 };
 
 // --- FINGERPRINT CATEGORY GROUPING ---
@@ -30,9 +31,9 @@ export const FINGERPRINT_CATEGORIES: Record<
     desc: "Worship style, sacraments, and spiritual life",
   },
   Posture: {
-    axes: ["socialconslib", "counterpromodern", "cultsepeng", "clericegal", "communindiv"] as string[],
+    axes: ["socialconslib", "counterpromodern", "cultsepeng", "clericegal", "communindiv", "tolerance"] as string[],
     label: "Posture",
-    desc: "Social ethics, culture, and church governance",
+    desc: "Social ethics, culture, church governance, and theological openness",
   },
 };
 

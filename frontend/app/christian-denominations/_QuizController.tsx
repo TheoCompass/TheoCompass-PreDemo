@@ -122,6 +122,9 @@ export default function QuizController() {
                 dimCoords[shortKey] = row[key];
               }
             }
+            if (key === "tolerance_score") {
+              dimCoords["tolerance"] = row[key];
+            }
           }
 
           map.set(denomId, {
@@ -951,6 +954,10 @@ export default function QuizController() {
   // ==========================================
   if (currentView === 'results') {
     const displayFamilies = selectedMode === "quick" && !showSpecific && familyMatches.length > 0;
+    const exportCoordsWithTolerance: Record<string, number> = {
+      ...userCoords,
+      tolerance: userTolerance,
+    };
 
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900 relative overflow-x-hidden">
@@ -1018,7 +1025,7 @@ export default function QuizController() {
                     <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2 border-b border-slate-100 pb-1">{catData.label}</div>
                     {catData.axes.map((axis) => {
                       const labels = AXIS_LABELS[axis];
-                      const score = userCoords[axis];
+                      const score = exportCoordsWithTolerance[axis];
                       if (score === undefined || score === null) return null;
                       const isLeft = score > 50;
                       return (
@@ -1037,20 +1044,6 @@ export default function QuizController() {
                     })}
                   </div>
                 ))}
-                <div className="mt-3 pt-3 border-t border-slate-100">
-                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2">Posture</div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-[95px] text-[9px] font-bold text-amber-600 uppercase tracking-wider text-right truncate">Accepting</div>
-                      <div className="flex-grow h-2.5 bg-slate-100 rounded-full relative">
-                        <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-300 z-10"></div>
-                        <div
-                          className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-amber-500 border border-white shadow z-20"
-                          style={{ left: `${100 - userTolerance}%` }}
-                        />
-                      </div>
-                      <div className="w-[95px] text-[9px] font-bold text-amber-600 uppercase tracking-wider text-left truncate">Dogmatic</div>
-                    </div>
-                </div>
               </div>
             </div>
           </div>

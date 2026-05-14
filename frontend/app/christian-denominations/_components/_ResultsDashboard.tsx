@@ -60,6 +60,10 @@ export function ResultsDashboard({
   onDevMenu,
 }: ResultsDashboardProps) {
   // --- Derived values ---
+  const userCoordsWithTolerance: Record<string, number> = {
+    ...userCoords,
+    tolerance: userTolerance,
+  };
   const displayFamilies = selectedMode === "quick" && !showSpecific && familyMatches.length > 0;
   const topFamily = displayFamilies ? familyMatches?.[0] : null;
   const topDenom = results?.[0] ?? null;
@@ -372,14 +376,14 @@ export function ResultsDashboard({
               </div>
 
               {(() => {
-                const distinctive = getDistinctiveAxes(userCoords, 3);
+                const distinctive = getDistinctiveAxes(userCoordsWithTolerance, 3);
                 if (distinctive.length === 0) return null;
                 return (
                   <div className="flex items-center gap-2 text-xs">
                     <span className="text-slate-400 font-medium">Distinctive Views:</span>
                     {distinctive.map((axis) => {
                       const labels = AXIS_LABELS[axis];
-                      const score = userCoords[axis];
+                          const score = userCoordsWithTolerance[axis];
                       const pole = score <= 50 ? labels.right : labels.left;
                       return (
                         <span
@@ -429,14 +433,14 @@ export function ResultsDashboard({
                       <div className="px-5 pb-4 pt-1 bg-slate-50/50">
                         {catData.axes.map((axis) => {
                           const labels = AXIS_LABELS[axis];
-                          const score = userCoords[axis];
+                          const score = userCoordsWithTolerance[axis];
                           if (score === undefined || score === null) return null;
 
                           const isLeft = score > 50;
                           const intensity = Math.abs(score - 50) / 50;
                           const dotPercent = 100 - score;
                           const poleLabel = isLeft ? labels.left : labels.right;
-                          const isDistinctive = getDistinctiveAxes(userCoords, 3).includes(axis);
+                          const isDistinctive = getDistinctiveAxes(userCoordsWithTolerance, 3).includes(axis);
                           const isZoomed = expandedAxis === axis;
 
                           // Comparison data (selected denomination from allCoordinates)
@@ -547,29 +551,6 @@ export function ResultsDashboard({
                 );
               })}
 
-              {/* Tolerance Axis (always visible) */}
-              <div className="px-5 py-4 border-t border-slate-200 bg-white">
-                <div className="flex justify-between text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1 px-1">
-                  <span className={userTolerance >= 50 ? "text-amber-600" : ""}>Accepting / Open</span>
-                  <span className={userTolerance <= 50 ? "text-amber-600" : ""}>Dogmatic / Strict</span>
-                </div>
-                <div className="relative h-6 flex items-center">
-                  <div className="absolute inset-y-0 left-0 right-0 flex items-center">
-                    <div className="w-full h-2 rounded-full bg-gradient-to-r from-amber-300 via-slate-200 to-amber-500 relative">
-                      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-0.5 h-4 bg-slate-400 z-10" />
-                    </div>
-                  </div>
-                  <div
-                    className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-amber-500 border-2 border-white shadow z-20"
-                    style={{ left: `${100 - userTolerance}%` }}
-                  />
-                </div>
-                <div className="flex justify-end mt-0.5">
-                  <span className="text-[10px] font-mono text-slate-400">
-                    {userTolerance}/100 • Overall Dogmatism
-                  </span>
-                </div>
-              </div>
             </div>
           </div>
 
