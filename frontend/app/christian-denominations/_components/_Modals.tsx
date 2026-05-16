@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 interface ModalsProps {
   showBackModal: boolean;
   showDevModal: boolean;
@@ -35,6 +37,17 @@ export function Modals({
   backModalMessage = "Your progress is saved automatically. You can resume later.",
   showDevTools = true,
 }: ModalsProps) {
+  const [customDenomId, setCustomDenomId] = useState("DENOM_001");
+  const [showCustomIdInput, setShowCustomIdInput] = useState(false);
+
+  const handleCustomDenomSubmit = () => {
+    const trimmed = customDenomId.trim();
+    if (trimmed) {
+      onDevDenomFill(trimmed);
+      setShowCustomIdInput(false);
+    }
+  };
+
   return (
     <>
       {/* Back Modal */}
@@ -71,15 +84,47 @@ export function Modals({
               >
                 Test: Perfect Catholic (DENOM_032)
               </button>
-              <button
-                onClick={() => {
-                  const customId = prompt("Enter a Denomination ID (e.g., DENOM_001):", "DENOM_001");
-                  if (customId) onDevDenomFill(customId.trim());
-                }}
-                className="w-full px-4 py-2 text-sm font-medium text-white bg-slate-700 hover:bg-slate-800 rounded-md transition"
-              >
-                Test: Custom Denomination ID
-              </button>
+
+              {/* Custom Denomination ID Input */}
+              {!showCustomIdInput ? (
+                <button
+                  onClick={() => setShowCustomIdInput(true)}
+                  className="w-full px-4 py-2 text-sm font-medium text-white bg-slate-700 hover:bg-slate-800 rounded-md transition"
+                >
+                  Test: Custom Denomination ID
+                </button>
+              ) : (
+                <div className="flex flex-col gap-2 p-3 bg-slate-50 rounded-md border border-slate-200">
+                  <label className="text-xs font-medium text-slate-600">Enter Denomination ID:</label>
+                  <input
+                    type="text"
+                    value={customDenomId}
+                    onChange={(e) => setCustomDenomId(e.target.value)}
+                    placeholder="e.g., DENOM_001"
+                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleCustomDenomSubmit();
+                      if (e.key === "Escape") setShowCustomIdInput(false);
+                    }}
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleCustomDenomSubmit}
+                      className="flex-1 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition"
+                    >
+                      Test
+                    </button>
+                    <button
+                      onClick={() => setShowCustomIdInput(false)}
+                      className="px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded-md transition"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <button
                 onClick={onCloseDevModal}
                 className="w-full px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition mt-2"
