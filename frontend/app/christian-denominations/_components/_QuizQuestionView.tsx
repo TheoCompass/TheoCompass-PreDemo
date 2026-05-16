@@ -293,7 +293,7 @@ export function QuizQuestionView({
                     [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 
                     [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 
                     [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow-md 
-                    [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-110
+                    [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-110 [&::-webkit-slider-thumb]:mt-1
                     [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full 
                     [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-blue-500 
                     [&::-moz-range-thumb]:shadow-md [&::-moz-range-thumb]:cursor-pointer"
@@ -358,7 +358,7 @@ export function QuizQuestionView({
                     [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 
                     [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 
                     [&::-webkit-slider-thumb]:border-emerald-500 [&::-webkit-slider-thumb]:shadow-md 
-                    [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-110
+                    [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-110 [&::-webkit-slider-thumb]:mt-1
                     [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full 
                     [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-emerald-500 
                     [&::-moz-range-thumb]:shadow-md [&::-moz-range-thumb]:cursor-pointer"
@@ -366,20 +366,13 @@ export function QuizQuestionView({
               </div>
               
               <div className="relative w-full mt-1.5 text-[10px] text-slate-400">
-                {/* Desktop: 5 labels in a row */}
-                <div className="hidden sm:flex justify-between h-5 leading-tight">
+                <div className="flex justify-between h-5 leading-tight">
                   <span>None</span>
                   <span className="text-center leading-tight -ml-7">
                     None for<br />Fellowship
                   </span>
                   <span className="-ml-8">A Few</span>
                   <span className="-ml-3">Most</span>
-                  <span>All</span>
-                </div>
-                {/* Mobile: simplified 3-label version */}
-                <div className="flex sm:hidden justify-between h-4">
-                  <span>None</span>
-                  <span>A Few</span>
                   <span>All</span>
                 </div>
               </div>
