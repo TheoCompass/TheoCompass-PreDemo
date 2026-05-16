@@ -14,6 +14,9 @@ import { Modals } from './_components/_Modals';
 import { ModeSelectCards } from './_components/_ModeSelectCards';
 import { QuizQuestionView } from './_components/_QuizQuestionView';
 import { ResultsDashboard } from './_components/_ResultsDashboard';
+import ExportCard from './_components/_ExportCard';
+import ExportLabelsCard from './_components/_ExportLabelsCard';
+import ExportFingerprintCard from './_components/_ExportFingerprintCard';
 
 export default function QuizController() {
   // --- APP STATE ---
@@ -23,6 +26,7 @@ export default function QuizController() {
 
   // --- DATA STATE ---
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [answeredQuestionCount, setAnsweredQuestionCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,9 +57,13 @@ export default function QuizController() {
     dimCoords: Record<string, number>;
   }>>(new Map());
 
-  // --- SCREENSHOT REF ---
+  // --- SCREENSHOT REFS ---
   const exportRef = useRef<HTMLDivElement>(null);
+  const exportLabelsRef = useRef<HTMLDivElement>(null);
+  const exportFingerprintRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingLabels, setIsExportingLabels] = useState(false);
+  const [isExportingFingerprint, setIsExportingFingerprint] = useState(false);
 
   // --- ROUTER & MODALS ---
   const router = useRouter();
@@ -166,6 +174,7 @@ export default function QuizController() {
         setUserTolerance(data.userTolerance);
         setUserLabels(data.userLabels);
         setSelectedMode(data.selectedMode || null);
+        setAnsweredQuestionCount(data.answeredCount || 0);
         setCurrentView("results");
         setIsLoaded(true);
         return;
@@ -370,6 +379,9 @@ export default function QuizController() {
             user_tolerance: data.userTolerance ?? 50
           });
 
+          const answerCount = Object.keys(newAnswers).length;
+          setAnsweredQuestionCount(answerCount);
+
           localStorage.setItem("theocompass_final_results", JSON.stringify({
              matches: data.matches,
              familyMatches: data.familyMatches || [],
@@ -377,6 +389,7 @@ export default function QuizController() {
              userTolerance: data.userTolerance ?? 50,
              userLabels: data.userLabels,
              selectedMode: selectedMode,
+             answeredCount: answerCount,
              timestamp: new Date().getTime()
           }));
 
@@ -523,6 +536,41 @@ export default function QuizController() {
     setExpandedInfo(null);
   };
 
+  const handleDownloadFingerprint = async () => {
+    if (!exportFingerprintRef.current) return;
+    setIsExportingFingerprint(true);
+    
+    try {
+      exportFingerprintRef.current.style.position = 'static';
+      exportFingerprintRef.current.style.left = 'auto';
+      
+      const canvas = await html2canvas(exportFingerprintRef.current, {
+        scale: 2, 
+        useCORS: true,
+        backgroundColor: "#ffffff",
+      });
+      
+      const dataURL = canvas.toDataURL("image/png");
+      const link = document.createElement("a");
+      link.download = "TheoCompass-Fingerprint.png";
+      link.href = dataURL;
+      link.click();
+
+      trackEvent('download_fingerprint_image', {
+        quiz_mode: selectedMode || 'quick',
+      });
+
+    } catch (err) {
+      console.error("Failed to generate fingerprint image", err);
+    } finally {
+      if (exportFingerprintRef.current) {
+        exportFingerprintRef.current.style.position = 'absolute';
+        exportFingerprintRef.current.style.left = '-9999px';
+      }
+      setIsExportingFingerprint(false);
+    }
+  };
+
   const handleDownloadImage = async () => {
     if (!exportRef.current) return;
     setIsExporting(true);
@@ -557,6 +605,42 @@ export default function QuizController() {
         exportRef.current.style.left = '-9999px';
       }
       setIsExporting(false);
+    }
+  };
+
+  const handleDownloadLabels = async () => {
+    if (!exportLabelsRef.current) return;
+    setIsExportingLabels(true);
+    
+    try {
+      exportLabelsRef.current.style.position = 'static';
+      exportLabelsRef.current.style.left = 'auto';
+      
+      const canvas = await html2canvas(exportLabelsRef.current, {
+        scale: 2, 
+        useCORS: true,
+        backgroundColor: "#f8fafc",
+      });
+      
+      const dataURL = canvas.toDataURL("image/png");
+      const link = document.createElement("a");
+      link.download = "TheoCompass-Belief-Labels.png";
+      link.href = dataURL;
+      link.click();
+
+      trackEvent('download_labels_image', {
+        quiz_mode: selectedMode || 'quick',
+        user_labels: userLabels.join(',')
+      });
+
+    } catch (err) {
+      console.error("Failed to generate labels image", err);
+    } finally {
+      if (exportLabelsRef.current) {
+        exportLabelsRef.current.style.position = 'absolute';
+        exportLabelsRef.current.style.left = '-9999px';
+      }
+      setIsExportingLabels(false);
     }
   };
 
@@ -961,115 +1045,34 @@ export default function QuizController() {
 
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900 relative overflow-x-hidden">
-        {/* HIDDEN EXPORT CARD */}
-        <div 
-          ref={exportRef} 
-          className="absolute w-[1000px] bg-slate-50 text-slate-900 overflow-hidden shadow-2xl ring-1 ring-slate-200 font-sans" 
-          style={{ left: '-9999px', top: '0' }}
-        >
-          <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white px-12 py-8 flex justify-between items-center border-b-4 border-blue-600/40">
-            <div>
-              <div className="text-4xl font-bold font-serif tracking-tight">TheoCompass Denomination Alignment Quiz v2.0 Public Alpha</div>
-              <div className="text-blue-300 text-lg font-bold tracking-widest uppercase mt-2">Theological Alignment Report</div>
-            </div>
-            <div className="w-20 h-20 bg-white rounded-full flex-shrink-0 flex items-center justify-center shadow-lg border-2 border-slate-700 overflow-hidden">
-               <Image src="/logo.png" alt="Logo" width={70} height={70} className="object-contain p-1.5" />
-            </div>
-          </div>
+        {/* HIDDEN EXPORT CARDS */}
+        <ExportCard
+          ref={exportRef}
+          results={results}
+          familyMatches={familyMatches}
+          userCoords={userCoords}
+          userTolerance={userTolerance}
+          selectedMode={selectedMode}
+          showSpecific={showSpecific}
+          displayFamilies={displayFamilies}
+          timestamp={new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
+          questionCount={answeredQuestionCount || questions.length}
+        />
 
-          <div className="relative bg-white text-center py-12 px-10 border-b border-slate-200 overflow-hidden">
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-50/50 via-white to-white pointer-events-none"></div>
-            <div className="relative z-10">
-              <div className="text-lg font-bold text-slate-400 uppercase tracking-widest mb-3">
-                {displayFamilies ? "Closest Theological Family" : "Closest Theological Alignment"}
-              </div>
-              <h1 className="text-5xl font-bold font-serif text-slate-900 leading-tight mb-6">
-                {results.length > 0 
-                  ? (displayFamilies ? familyMatches[0].family : results[0].name) 
-                  : "Calculating..."}
-              </h1>
-              <div className="inline-flex items-center gap-4 bg-slate-900 px-8 py-3 rounded-full shadow-md border border-slate-800">
-                <span className="text-4xl font-bold text-white">
-                  {results.length > 0 
-                    ? (displayFamilies ? familyMatches[0].matchPercentage : results[0].matchPercentage) 
-                    : 0}%
-                </span>
-                <span className="text-sm font-bold text-blue-300 uppercase tracking-widest">Match</span>
-              </div>
-            </div>
-          </div>
+        <ExportLabelsCard
+          userLabels={userLabels}
+          selectedMode={selectedMode}
+          questionCount={answeredQuestionCount || questions.length}
+          onRef={(el: HTMLDivElement | null) => { exportLabelsRef.current = el; }}
+        />
 
-          <div className="grid grid-cols-12 gap-6 p-8">
-            <div className="col-span-5 bg-white rounded-2xl p-8 shadow-sm border border-slate-200 flex flex-col">
-              <div className="text-lg font-bold text-slate-400 uppercase tracking-widest mb-6 border-b border-slate-100 pb-3">Top 5 Traditions</div>
-              <div className="space-y-4 flex-grow">
-                {results.slice(0, 5).map((d: any, i: number) => (
-                  <div key={d.id} className={`flex justify-between items-center p-4 rounded-xl transition-colors ${i === 0 ? 'bg-blue-50/50 border border-blue-100 shadow-sm' : 'bg-slate-50 border border-slate-100'}`}>
-                    <div className="flex items-center gap-4">
-                      <div className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${i === 0 ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-500'}`}>
-                        {i + 1}
-                      </div>
-                      <span className={`font-semibold text-sm ${i === 0 ? 'text-blue-950 font-serif text-base' : 'text-slate-700'}`}>{d.name}</span>
-                    </div>
-                    <span className={`font-bold text-sm ${i === 0 ? 'text-blue-700' : 'text-slate-500'}`}>{d.matchPercentage}%</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="col-span-7 bg-white rounded-2xl p-8 shadow-sm border border-slate-200">
-              <div className="text-lg font-bold text-slate-400 uppercase tracking-widest mb-6 border-b border-slate-100 pb-3">Theological Fingerprint</div>
-              <div className="flex flex-col gap-3">
-                {Object.entries(FINGERPRINT_CATEGORIES).map(([catKey, catData]) => (
-                  <div key={catKey} className="mb-2">
-                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2 border-b border-slate-100 pb-1">{catData.label}</div>
-                    {catData.axes.map((axis) => {
-                      const labels = AXIS_LABELS[axis];
-                      const score = exportCoordsWithTolerance[axis];
-                      if (score === undefined || score === null) return null;
-                      const isLeft = score > 50;
-                      return (
-                        <div key={axis} className="flex items-center gap-2 mb-1">
-                          <div className="w-[95px] text-[9px] font-medium text-slate-500 uppercase tracking-wider text-right truncate">{labels.left}</div>
-                          <div className="flex-grow h-2 bg-slate-100 rounded-full relative">
-                            <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-300 z-10"></div>
-                            <div
-                              className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full border border-white shadow z-20 ${isLeft ? 'bg-blue-600' : 'bg-slate-700'}`}
-                              style={{ left: `${100 - score}%` }}
-                            />
-                          </div>
-                          <div className="w-[95px] text-[9px] font-medium text-slate-500 uppercase tracking-wider text-left truncate">{labels.right}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="h-full bg-white rounded-2xl p-8 shadow-sm border border-slate-200 flex flex-col">
-            <CompassChart 
-              userCoords={userCoords} 
-              userTolerance={userTolerance} 
-              isExport={true} 
-              selectedMode={selectedMode}
-              familyMatches={familyMatches}
-              displayFamilies={displayFamilies}
-            />
-          </div>
-
-          <div className="bg-slate-900 px-12 py-10 text-center border-t-4 border-slate-800">
-            <p className="font-serif italic text-lg text-slate-300 mb-3">
-              "He is before all things, and in him all things hold together." — Colossians 1:17
-            </p>
-            <div className="w-16 h-px bg-slate-700 mx-auto my-4"></div>
-            <div className="text-sm font-medium text-slate-400 mb-1">Built for informed decision, not persuasion.</div>
-            <div className="text-base text-slate-500 font-mono mt-2">
-                theocompass.com • r/TheoCompass • © 2026 Oroq / TheoCompass Project
-            </div>
-          </div>
-        </div>
+        <ExportFingerprintCard
+          userCoords={userCoords}
+          userTolerance={userTolerance}
+          selectedMode={selectedMode}
+          questionCount={answeredQuestionCount || questions.length}
+          onRef={(el: HTMLDivElement | null) => { exportFingerprintRef.current = el; }}
+        />
 
         <PageHeader
           showRestart={true}
@@ -1110,12 +1113,16 @@ export default function QuizController() {
           allCoordinates={allCoordinates}
           isExporting={isExporting}
           exportRef={exportRef}
+          isExportingLabels={isExportingLabels}
+          isExportingFingerprint={isExportingFingerprint}
           onSetShowSpecific={setShowSpecific}
           onSetShowTopFamilyDenoms={setShowTopFamilyDenoms}
           onSetCompareDenomId={setCompareDenomId}
           onSetExpandedAxis={setExpandedAxis}
           onSetCollapsedCategories={setCollapsedCategories}
           onDownloadImage={handleDownloadImage}
+          onDownloadLabels={handleDownloadLabels}
+          onDownloadFingerprint={handleDownloadFingerprint}
           onRetake={() => setShowRestartModal(true)}
           onDevMenu={() => setShowDevModal(true)}
         />
