@@ -5,7 +5,7 @@ import TheologicalLabelCloud from "../TheologicalLabelCloud";
 import { FamilyCard } from "./_FamilyCard";
 import { DenominationCard } from "./_DenominationCard";
 import { ConvictionSwatch } from "./_ConvictionSwatch";
-import { getTierStyle, getConvictionStyle, getGapStyle, getDistinctiveAxes } from "../_helpers";
+import { getTierStyle, getConvictionStyle, getGapStyle } from "../_helpers";
 import { AXIS_LABELS, FINGERPRINT_CATEGORIES } from "../_constants";
 
 export interface ResultsDashboardProps {
@@ -24,12 +24,16 @@ export interface ResultsDashboardProps {
   allCoordinates: Map<string, { name: string; family: string; dimCoords: Record<string, number> }>;
   isExporting: boolean;
   exportRef: React.RefObject<HTMLDivElement | null>;
+  isExportingLabels: boolean;
+  isExportingFingerprint: boolean;
   onSetShowSpecific: (val: boolean) => void;
   onSetShowTopFamilyDenoms: (val: boolean) => void;
   onSetCompareDenomId: (id: string | null) => void;
   onSetExpandedAxis: (axis: string | null) => void;
   onSetCollapsedCategories: (cats: Record<string, boolean>) => void;
   onDownloadImage: () => void;
+  onDownloadLabels: () => void;
+  onDownloadFingerprint: () => void;
   onRetake: () => void;
   onDevMenu: () => void;
 }
@@ -50,12 +54,16 @@ export function ResultsDashboard({
   allCoordinates,
   isExporting,
   exportRef,
+  isExportingLabels,
+  isExportingFingerprint,
   onSetShowSpecific,
   onSetShowTopFamilyDenoms,
   onSetCompareDenomId,
   onSetExpandedAxis,
   onSetCollapsedCategories,
   onDownloadImage,
+  onDownloadLabels,
+  onDownloadFingerprint,
   onRetake,
   onDevMenu,
 }: ResultsDashboardProps) {
@@ -375,28 +383,6 @@ export function ResultsDashboard({
                 <ConvictionSwatch score={55} label="Neutral (40–60)" />
               </div>
 
-              {(() => {
-                const distinctive = getDistinctiveAxes(userCoordsWithTolerance, 3);
-                if (distinctive.length === 0) return null;
-                return (
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="text-slate-400 font-medium">Distinctive Views:</span>
-                    {distinctive.map((axis) => {
-                      const labels = AXIS_LABELS[axis];
-                          const score = userCoordsWithTolerance[axis];
-                      const pole = score <= 50 ? labels.right : labels.left;
-                      return (
-                        <span
-                          key={axis}
-                          className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full font-bold border border-purple-200 animate-pulse"
-                        >
-                          {pole}
-                        </span>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
             </div>
 
             {/* === CATEGORIZED ACCORDION FINGERPRINT === */}
@@ -440,7 +426,6 @@ export function ResultsDashboard({
                           const intensity = Math.abs(score - 50) / 50;
                           const dotPercent = 100 - score;
                           const poleLabel = isLeft ? labels.left : labels.right;
-                          const isDistinctive = getDistinctiveAxes(userCoordsWithTolerance, 3).includes(axis);
                           const isZoomed = expandedAxis === axis;
 
                           // Comparison data (selected denomination from allCoordinates)
@@ -477,7 +462,7 @@ export function ResultsDashboard({
                                       getConvictionStyle(score).animate
                                         ? getConvictionStyle(score).animate
                                           : ""
-                                    } ring-2 ${getConvictionStyle(score).ringColor} ring-offset-1 ${isDistinctive ? "ring-offset-2" : ""}`}
+                                    } ring-1 ${getConvictionStyle(score).ringColor}`}
                                     style={{ left: `${dotPercent}%` }}
                                   />
 
@@ -588,6 +573,26 @@ export function ResultsDashboard({
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
                   {isExporting ? "Generating PNG..." : "Download Image"}
+                </button>
+                <button 
+                  onClick={onDownloadLabels} 
+                  disabled={isExportingLabels}
+                  className={`bg-white text-slate-700 font-bold py-3 px-8 rounded-full shadow-lg transition-transform flex items-center justify-center gap-2 border border-blue-200 ${isExportingLabels ? 'opacity-70 cursor-not-allowed' : 'hover:scale-105'}`}
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                  {isExportingLabels ? "Generating PNG..." : "Download Belief Labels"}
+                </button>
+                <button 
+                  onClick={onDownloadFingerprint} 
+                  disabled={isExportingFingerprint}
+                  className={`bg-white/90 text-slate-700 font-bold py-3 px-8 rounded-full shadow-lg transition-transform flex items-center justify-center gap-2 border border-amber-200 ${isExportingFingerprint ? 'opacity-70 cursor-not-allowed' : 'hover:scale-105'}`}
+                >
+                  <svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  {isExportingFingerprint ? "Generating PNG..." : "Download Fingerprint"}
                 </button>
                 <a href="https://www.reddit.com/r/TheoCompass/submit/?type=IMAGE" target="_blank" rel="noreferrer" className="text-blue-200 font-medium text-sm hover:text-white underline decoration-blue-500/50 underline-offset-4 transition-colors">
                   Post on r/TheoCompass

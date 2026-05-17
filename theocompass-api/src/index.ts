@@ -41,18 +41,36 @@ export default {
       // ENDPOINT 1: Scattermap Coordinates
       // -----------------------------------------------------------------
       if (url.pathname === "/api/coordinates") {
+        const mode = url.searchParams.get('mode') || 'quick';
         // JOIN the coordinates with the master denominations table to get names and metadata
         const { results } = await env.DB.prepare(`
           SELECT 
-            c.*, 
+            c.denomination_id,
+            c.mode,
+            c.family,
+            c.tolerance_score,
+            c.theol_cons_lib_avg,
+            c.social_cons_lib_avg,
+            c.counter_pro_modern_avg,
+            c.super_nat_avg,
+            c.cult_sep_eng_avg,
+            c.cleric_egal_avg,
+            c.div_hum_agency_avg,
+            c.commun_indiv_avg,
+            c.liturg_spont_avg,
+            c.sacram_funct_avg,
+            c.literal_crit_avg,
+            c.intellect_exper_avg,
             d.name, 
-            d.family, 
+            d.family,
             d.region_origin as origin, 
             d.founded_year as year, 
             d.description
           FROM denomination_compass_coordinates c
           LEFT JOIN denominations d ON c.denomination_id = d.id
-        `).all();
+          WHERE c.mode = ?
+          ORDER BY c.denomination_id
+        `).bind(mode).all();
         
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
@@ -239,6 +257,15 @@ export default {
       // ENDPOINT 5: Calculate Matches (POST)
       // The core engine for TheoCompass
       // -----------------------------------------------------------------
+      // -----------------------------------------------------------------
+      // ENDPOINT 6: Family Metadata (denomination_families)
+      // Replaces: hardcoded FAMILY_METADATA in frontend/lib/taxonomy.ts
+      // -----------------------------------------------------------------
+      if (url.pathname === "/api/families") {
+        const { results } = await env.DB.prepare("SELECT * FROM denomination_families").all();
+        return new Response(JSON.stringify(results), { headers: corsHeaders });
+      }
+
       if (request.method === "POST" && url.pathname === "/api/calculate") {
         return await handleCalculate(request, env, corsHeaders);
       }

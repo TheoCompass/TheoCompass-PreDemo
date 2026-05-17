@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { FINGERPRINT_CATEGORIES, AXIS_LABELS } from "../_constants";
-import { getConvictionStyle, getDistinctiveAxes } from "../_helpers";
+import { getConvictionStyle } from "../_helpers";
 
 export interface ExportFingerprintCardProps {
   userCoords: Record<string, number>;
@@ -31,7 +31,6 @@ export default function ExportFingerprintCard({
         ? "Standard Mode"
         : "Deep Dive";
 
-  const distinctiveAxes = getDistinctiveAxes(exportCoords, 3);
   const now = new Date();
   const timestamp = now.toLocaleDateString("en-US", {
     year: "numeric",
@@ -73,8 +72,7 @@ export default function ExportFingerprintCard({
             Your 13-Axis Theological Fingerprint
           </div>
           <p className="text-sm text-slate-500 max-w-xl mx-auto leading-relaxed">
-            Your positions on 13 bipolar dimensions of Christian theology. Dots are colored by conviction strength;
-            distinctive views are highlighted with a purple ring.
+            Your positions on 13 bipolar dimensions of Christian theology. Dots are colored by conviction strength.
           </p>
           {/* Conviction legend */}
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-1.5 mt-4 text-xs font-bold">
@@ -117,8 +115,6 @@ export default function ExportFingerprintCard({
                   const isLeft = score > 50;
                   const conviction = getConvictionStyle(score);
                   const dotPercent = 100 - score;
-                  const isDistinctive = distinctiveAxes.includes(axis);
-
                   return (
                     <div key={axis}>
                       {/* Pole labels */}
@@ -138,7 +134,7 @@ export default function ExportFingerprintCard({
 
                         {/* Conviction dot */}
                         <div
-                          className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-white shadow-sm z-10 ${conviction.dotColor} ${conviction.animate ? conviction.animate : ""} ring-2 ${isDistinctive ? "ring-purple-400 ring-offset-2" : conviction.ringColor} ring-offset-1`}
+                          className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-white shadow-sm z-10 ${conviction.dotColor} ${conviction.animate ? conviction.animate : ""} ring-2 ${conviction.ringColor} ring-offset-1`}
                           style={{ left: `${dotPercent}%` }}
                         />
                       </div>

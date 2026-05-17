@@ -20,7 +20,25 @@ function readCSV(filename) {
   return parse(fileContent, {
     columns: true, 
     skip_empty_lines: true,
-    trim: true 
+    trim: true,
+    delimiter: ','
+  });
+}
+
+// Helper to parse a TSV (tab-delimited) file
+function readTSV(filename) {
+  const filePath = path.join(DATA_DIR, filename);
+  if (!fs.existsSync(filePath)) {
+      console.warn(`⚠️ Warning: Could not find ${filename} at ${filePath}`);
+      return [];
+  }
+  const fileContent = fs.readFileSync(filePath, 'utf8');
+  return parse(fileContent, {
+    columns: true,
+    skip_empty_lines: true,
+    trim: true,
+    delimiter: '\t',
+    quote: null  // TSV: treat quotes as literal characters
   });
 }
 
@@ -32,7 +50,7 @@ function buildTheoDataFromCSVs() {
   const rawQuestions = readCSV('TheoCompass (v2.0) - QUESTION_MASTER.csv');
   const rawDimensions = readCSV('TheoCompass (v2.0) - Hidden Dimensions.csv');
   const rawAnswerScoring = readCSV('TheoCompass (v2.0) - Unified Answer Scoring Matrix.csv');
-  const rawDoctrines = readCSV('TheoCompass (v2.0) - Denominations & Doctrines_EXPORT.csv');
+  const rawDoctrines = readTSV('TheoCompass (v2.0) - Denominations & Doctrines_EXPORT.tsv');
   const rawSequences = readCSV('TheoCompass (v2.0) - QUIZ_SEQUENCE.csv');
   const rawFamilies = readCSV('TheoCompass (v2.0) - FAMILIES.csv');
 

@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceArea, ReferenceLine } from 'recharts';
-import { FAMILY_COLORS, FAMILY_METADATA, FAMILY_GROUPS, GROUP_COLORS, FAMILY_TO_GROUP } from '../../lib/taxonomy';
+import { FAMILY_COLORS, FAMILY_GROUPS, GROUP_COLORS, FAMILY_TO_GROUP } from '../../lib/taxonomy';
 
 const AXIS_OPTIONS = [
     { key: 'theol_cons_lib_avg', label: 'Theology: Progressive ↔ Orthodox', minLabel: 'Progressive', maxLabel: 'Orthodox' },
@@ -19,16 +19,33 @@ const AXIS_OPTIONS = [
     { key: 'tolerance_score', label: 'Posture: Accepting ↔ Dogmatic', minLabel: 'Accepting', maxLabel: 'Dogmatic' },
 ];
 
-const getFamilyKey = (family: string) => {
+// Transitional shim: maps old D1 family_name values → new taxonomy keys
+// Remove this after the Beta D1 re-seed in Phase 2
+const LEGACY_FAMILY_NAME_MAP: Record<string, string> = {
+    'radical reformation & anabaptist': 'anabaptist',
+    'eastern & regional catholicism':   'anti-sacerdotal primitivist',
+    'independent sacramental & autocephalous': 'independent/liberal catholicism',
+};
+
+const getFamilyKey = (family: string): string | null => {
     if (!family) return null;
     const normalize = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
     const normalizedInput = normalize(family);
-    
+
+    // Check legacy name shim first (transitional — remove after D1 re-seed)
+    const legacyKey = LEGACY_FAMILY_NAME_MAP[family.toLowerCase().trim()];
+    if (legacyKey) {
+        const resolvedKey = Object.keys(FAMILY_COLORS).find(
+            k => normalize(k) === normalize(legacyKey)
+        );
+        if (resolvedKey) return resolvedKey;
+    }
+
     const key = Object.keys(FAMILY_COLORS).find(k => normalize(k) === normalizedInput);
     if (key) return key;
 
     const fallbackKey = Object.keys(FAMILY_COLORS).find(k => normalizedInput.includes(normalize(k.split(' ')[0])));
-    return fallbackKey || null;
+    return fallbackKey ?? null;
 };
 
 const getFamilyColor = (family: string, viewMode?: 'families' | 'denominations') => {
@@ -41,9 +58,34 @@ const getFamilyColor = (family: string, viewMode?: 'families' | 'denominations')
     return FAMILY_COLORS[key] || '#64748b';
 };
 
-const getFamilyMeta = (family: string) => {
-    const key = getFamilyKey(family);
-    return key ? FAMILY_METADATA[key] : null;
+// Family metadata now fetched live from /api/families instead of static FAMILY_METADATA
+const useFamilyMeta = () => {
+    const [metaMap, setMetaMap] = useState<Record<string, { century: string; region: string; members: string; desc: string }>>({});
+
+    useEffect(() => {
+        async function load() {
+            try {
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL!;
+                const res = await fetch(`${apiUrl}/api/families`);
+                const rows: any[] = await res.json();
+                const map: Record<string, { century: string; region: string; members: string; desc: string }> = {};
+                rows.forEach((row: any) => {
+                    map[row.family_name] = {
+                        century: row.century || '',
+                        region: row.region_origin || '',
+                        members: row.approx_members || '',
+                        desc: row.description || ''
+                    };
+                });
+                setMetaMap(map);
+            } catch {
+                // silently fail; tooltip will just not show meta
+            }
+        }
+        load();
+    }, []);
+
+    return metaMap;
 };
 
 const CustomDot = (props: any) => {
@@ -74,12 +116,12 @@ const CustomDot = (props: any) => {
     );
 };
 
-const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: any[] }) => {
+const CustomTooltip = ({ active, payload, familyMetaMap }: { active?: boolean; payload?: any[] | readonly any[]; familyMetaMap: Record<string, { century: string; region: string; members: string; desc: string }> }) => {
     if (active && payload && payload.length) {
         const data = payload[0].payload;
         
         // Fetch family meta if it's a family node
-        const meta = data.isFamily ? getFamilyMeta(data.name) : null;
+        const meta = data.isFamily ? familyMetaMap[data.name] : null;
 
         return (
             <div className="bg-slate-900 text-white p-2.5 sm:p-3.5 rounded-xl shadow-2xl border border-slate-700 text-xs sm:text-sm max-w-[240px] sm:max-w-[320px] w-[240px] sm:w-[320px] z-50 relative pointer-events-none">
@@ -156,6 +198,8 @@ interface CompassProps {
 }
 
 export default function CompassChart({ userCoords, userTolerance, isExport = false, selectedMode = 'quick', familyMatches = [] }: CompassProps) {
+    const rawFamilyMetaMap = useFamilyMeta();
+    const familyMetaMap = useMemo(() => rawFamilyMetaMap, [rawFamilyMetaMap]);
     const [rawMapData, setRawMapData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [viewMode, setViewMode] = useState<'families' | 'denominations'>('families');
@@ -191,6 +235,16 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
                 const coordRes = await fetch(apiUrl + '/api/coordinates?mode=quick');
                 const rawCoords = await coordRes.json();
                 setRawMapData(rawCoords);
+                if (process.env.NODE_ENV === 'development') {
+                    const families = [...new Set((rawCoords as any[]).map((r: any) => r.family))].sort();
+                    const nullCount = (rawCoords as any[]).filter((r: any) => !r.family || r.family === 'Unknown').length;
+                    console.table({
+                        'Total denomination rows': (rawCoords as any[]).length,
+                        'Unique families found': families.length,
+                        'Rows with null/Unknown family': nullCount,
+                    });
+                    console.log('[TheoCompass] Families from API:', families);
+                }
             } catch (e) {
                 console.error('Failed to load compass coordinates', e);
             } finally {
@@ -203,25 +257,33 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
     const chartData = useMemo(() => {
         if (!rawMapData.length) return [];
 
+        // Step 1: Format raw API rows
+        // Use denomination_id as the canonical identity key, name is display-only
         const formattedData = rawMapData.map((coordRow: any) => ({
             ...coordRow,
-            name: coordRow.name || coordRow.denomination_id,
-            family: coordRow.family || 'Tradition',
-            origin: coordRow.origin || '',
-            year: coordRow.year || '',
-            isUser: false
+            // FIXED: use denomination_id as the unique key, not name
+            id:     coordRow.denomination_id,
+            name:   coordRow.name ?? coordRow.denomination_id,
+            family: coordRow.family ?? 'Unknown',
+            origin: coordRow.region_origin ?? coordRow.origin ?? '',
+            year:   coordRow.founded_year  ?? coordRow.year   ?? '',
+            isUser: false,
         }));
 
-        const mergedMap = new Map();
+        // Step 2: Deduplicate by denomination_id (not name)
+        // API should return 1 row per denom for the requested mode, but guard anyway
+        const mergedMap = new Map<string, any>();
         formattedData.forEach((item: any) => {
-            if (mergedMap.has(item.name)) {
-                const existing = mergedMap.get(item.name);
+            const key = item.id; // FIXED: was item.name
+            if (mergedMap.has(key)) {
+                // If duplicates exist, average their axis values
+                const existing = mergedMap.get(key);
+                existing.count += 1; // FIXED: count once per duplicate row, not per axis
                 AXIS_OPTIONS.forEach(axis => {
                     if (item[axis.key] !== undefined && item[axis.key] !== null) {
-                        existing.sums[axis.key] = (existing.sums[axis.key] || 0) + Number(item[axis.key]);
+                        existing.sums[axis.key] = (existing.sums[axis.key] ?? 0) + Number(item[axis.key]);
                     }
                 });
-                existing.count += 1;
             } else {
                 const initialSums: Record<string, number> = {};
                 AXIS_OPTIONS.forEach(axis => {
@@ -229,7 +291,7 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
                         initialSums[axis.key] = Number(item[axis.key]);
                     }
                 });
-                mergedMap.set(item.name, { ...item, sums: initialSums, count: 1 });
+                mergedMap.set(key, { ...item, sums: initialSums, count: 1 });
             }
         });
 
@@ -246,22 +308,34 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
             return averagedItem;
         });
 
+        if (process.env.NODE_ENV === 'development') {
+            console.log(`[TheoCompass] cleanData: ${cleanData.length} denominations across ${new Set(cleanData.map((d: any) => d.family)).size} families`);
+        }
+
+        // Step 3: Build family centroids OR use individual dots
         let finalBackgroundData = cleanData;
 
         if (viewMode === 'families') {
-            const familyGroups = new Map();
+            const familyGroups = new Map<string, any>();
+
             cleanData.forEach((item: any) => {
-                const fam = item.family || 'Unknown';
+                const fam = item.family ?? 'Unknown';
                 if (!familyGroups.has(fam)) {
-                    familyGroups.set(fam, { ...item, name: fam, isFamily: true, count: 0, sums: {}, values: {} });
+                    familyGroups.set(fam, {
+                        ...item,
+                        name: fam,
+                        isFamily: true,
+                        count: 0,
+                        sums: {},
+                        values: {},
+                    });
                 }
                 const group = familyGroups.get(fam);
                 group.count += 1;
-                
                 AXIS_OPTIONS.forEach(opt => {
                     if (item[opt.key] !== undefined && item[opt.key] !== null) {
                         const val = Number(item[opt.key]);
-                        group.sums[opt.key] = (group.sums[opt.key] || 0) + val;
+                        group.sums[opt.key] = (group.sums[opt.key] ?? 0) + val;
                         if (!group.values[opt.key]) group.values[opt.key] = [];
                         group.values[opt.key].push(val);
                     }
@@ -269,11 +343,10 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
             });
 
             finalBackgroundData = Array.from(familyGroups.values()).map((group: any) => {
-                const averaged = { ...group };
+                const averaged: any = { ...group };
                 AXIS_OPTIONS.forEach(opt => {
                     if (group.sums[opt.key] !== undefined) {
                         averaged[opt.key] = group.sums[opt.key] / group.count;
-                        
                         const vals = group.values[opt.key];
                         averaged[`${opt.key}Min`] = Math.min(...vals);
                         averaged[`${opt.key}Max`] = Math.max(...vals);
@@ -281,11 +354,27 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
                 });
                 delete averaged.sums;
                 delete averaged.values;
-                averaged.z = 150; 
+                averaged.z = 150;
                 return averaged;
             });
         }
 
+        // Step 4: Add user point
+        // Map from chart's underscore-separated keys (e.g. "theol_cons_lib") to API underscore-stripped keys (e.g. "theolconslib")
+        const CHART_KEY_TO_API_KEY: Record<string, string> = {
+            'theol_cons_lib':     'theolconslib',
+            'social_cons_lib':    'socialconslib',
+            'counter_pro_modern': 'counterpromodern',
+            'super_nat':          'supernat',
+            'cult_sep_eng':       'cultsepeng',
+            'cleric_egal':        'clericegal',
+            'div_hum_agency':     'divhumagency',
+            'commun_indiv':       'communindiv',
+            'liturg_spont':       'liturgspont',
+            'sacram_funct':       'sacramfunct',
+            'literal_crit':       'literalcrit',
+            'intellect_exper':    'intellectexper',
+        };
         const userPoint = {
             id: 'USER',
             name: 'You Are Here',
@@ -293,13 +382,21 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
             isUser: true,
             z: 200,
             ...AXIS_OPTIONS.reduce((acc, opt) => {
-                const rawKey = opt.key.replace('_avg', '').replace(/_/g, '');
-                acc[opt.key] = rawKey === 'tolerancescore' ? userTolerance : (userCoords[rawKey] || 50);
+                const chartKey = opt.key === 'tolerance_score'
+                    ? 'tolerance_score'
+                    : opt.key.replace(/_avg$/, '');
+                // Try chart key directly first, then the API underscore-stripped version
+                const value = opt.key === 'tolerance_score'
+                    ? userTolerance
+                    : (userCoords[chartKey] ?? userCoords[CHART_KEY_TO_API_KEY[chartKey]] ?? 50);
+                acc[opt.key] = value;
                 return acc;
-            }, {} as Record<string, number>)
+            }, {} as Record<string, number>),
         };
 
         const compiledData = [...finalBackgroundData, userPoint];
+
+        // Step 5: Apply family filter in denominations mode
         if (viewMode === 'denominations' && selectedFamilies.length > 0) {
             return compiledData.filter(d => d.isUser || selectedFamilies.includes(getFamilyKey(d.family) || ''));
         }
@@ -401,7 +498,7 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
                         <XAxis type="number" dataKey={xAxis} domain={[0, 100]} reversed={true} hide />
                         <YAxis type="number" dataKey={yAxis} domain={[0, 100]} reversed={true} hide />
                         <ZAxis type="number" dataKey="z" range={[60, 400]} />
-                        <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: '3 3' }} />
+                        <Tooltip content={(props) => <CustomTooltip {...props} familyMetaMap={familyMetaMap} />} cursor={{ strokeDasharray: '3 3' }} />
                         
                         {showDefaultBounds && (
                             <ReferenceArea 

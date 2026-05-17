@@ -251,6 +251,13 @@ export default function QuizController() {
     setUserAnswers({});
     setCurrentQuestionIndex(0);
     setQuestions([]);
+    setResults([]);
+    setFamilyMatches([]);
+    setUserCoords({});
+    setUserTolerance(50);
+    setUserLabels([]);
+    setShowSpecific(false);
+    setShowTopFamilyDenoms(false);
     setShowRestartModal(false);
   };
 

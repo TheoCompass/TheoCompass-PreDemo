@@ -26,6 +26,13 @@ const TOLERANCE_STYLES = [
 ];
 
 const TOLERANCE_TEXT = ["Core Dogma", "Primary", "Secondary", "Tertiary", "Non-Essential"];
+const TOLERANCE_DESCRIPTIONS = [
+  "Non-negotiable beliefs central to Christian orthodoxy",
+  "Doctrines that define theological traditions",
+  "Important beliefs that distinguish denominations",
+  "Positions debated within denominations",
+  "Matters of personal conviction or preference",
+];
 
 const TOLERANCE_ICONS = [
   "✦", // Core Dogma — star symbol
@@ -606,6 +613,7 @@ export default function TheologicalLabelCloud({ userLabels, className = "" }: Th
                     <div className="flex items-center gap-3 px-5 py-3.5 bg-slate-50/80 border-b border-slate-100">
                       <span className={`w-3 h-3 rounded-full ${TOLERANCE_DOT_COLORS[group.tolerance]}`} />
                       <span className="font-bold text-slate-800">{group.icon} {group.title}</span>
+                      <span className="text-xs text-slate-400 ml-1 hidden sm:inline">{TOLERANCE_DESCRIPTIONS[group.tolerance]}</span>
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                         isEmpty
                           ? "bg-slate-100 text-slate-400"

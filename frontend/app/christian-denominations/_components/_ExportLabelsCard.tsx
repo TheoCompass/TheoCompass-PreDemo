@@ -13,6 +13,13 @@ interface Label {
 }
 
 const TOLERANCE_LABELS = ["Core Dogma", "Primary", "Secondary", "Tertiary", "Non-Essential"];
+const TOLERANCE_DESCRIPTIONS = [
+  "Non-negotiable beliefs central to Christian orthodoxy",
+  "Doctrines that define theological traditions",
+  "Important beliefs that distinguish denominations",
+  "Positions debated within denominations",
+  "Matters of personal conviction or preference",
+];
 const TOLERANCE_ICONS = ["✦", "◆", "●", "▸", "○"];
 const TOLERANCE_STYLES = [
   "bg-red-900 text-red-50 border-red-950",
@@ -230,6 +237,7 @@ export default function ExportLabelsCard({
                 <div className="flex items-center gap-3 px-5 py-3 bg-slate-50/80 border-b border-slate-100">
                   <span className={`w-3 h-3 rounded-full ${TOLERANCE_DOT_COLORS[group.tolerance]}`} />
                   <span className="font-bold text-slate-800 text-sm">{group.icon} {group.title}</span>
+                  <span className="text-xs text-slate-400 ml-1 hidden sm:inline">{TOLERANCE_DESCRIPTIONS[group.tolerance]}</span>
                   <span className="text-xs font-medium text-slate-400 bg-white px-2 py-0.5 rounded-full border border-slate-200">
                     {group.items.length}
                   </span>
