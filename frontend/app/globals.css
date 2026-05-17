@@ -25,3 +25,126 @@
     color: var(--color-brand-dark);
   }
 }
+
+@layer utilities {
+  /* Fade-in + slide-up animation */
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .animate-fade-in-up {
+    animation: fade-in-up 0.35s ease-out forwards;
+  }
+
+  /* Fade-in animation */
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out forwards;
+  }
+
+  /* Slide-out-left for question transitions */
+  @keyframes slide-out-left {
+    from {
+      opacity: 1;
+      transform: translateX(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateX(-24px);
+    }
+  }
+  .animate-slide-out-left {
+    animation: slide-out-left 0.2s ease-in forwards;
+  }
+
+  /* Slide-in-right for question transitions */
+  @keyframes slide-in-right {
+    from {
+      opacity: 0;
+      transform: translateX(24px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  .animate-slide-in-right {
+    animation: slide-in-right 0.3s ease-out forwards;
+  }
+
+  /* Shimmer for progress bar */
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  .animate-shimmer {
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%);
+    background-size: 200% 100%;
+    animation: shimmer 2s ease-in-out infinite;
+  }
+
+  /* Pulse glow for "See Results" button */
+  @keyframes glow-pulse {
+    0%, 100% { box-shadow: 0 0 8px rgba(59, 130, 246, 0.3); }
+    50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.6); }
+  }
+  .animate-glow-pulse {
+    animation: glow-pulse 2s ease-in-out infinite;
+  }
+
+  /* Scale-in for save toast */
+  @keyframes scale-in-out {
+    0% { transform: scale(0.8); opacity: 0; }
+    20% { transform: scale(1.05); opacity: 1; }
+    80% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(0.9); opacity: 0; }
+  }
+  .animate-scale-in-out {
+    animation: scale-in-out 1.5s ease-in-out forwards;
+  }
+
+  /* Checkmark bounce for selected answer */
+  @keyframes checkmark-bounce {
+    0% { transform: scale(0); opacity: 0; }
+    60% { transform: scale(1.3); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .animate-checkmark-bounce {
+    animation: checkmark-bounce 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+
+  /* Slide-down for sliders panel */
+  @keyframes slide-down-in {
+    from {
+      max-height: 0;
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      max-height: 500px;
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .animate-slide-down-in {
+    animation: slide-down-in 0.3s ease-out forwards;
+  }
+
+  /* Slow pulse for the info button hint on first question */
+  @keyframes pulse-slow {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.05); }
+  }
+  .animate-pulse-slow {
+    animation: pulse-slow 2s ease-in-out infinite;
+  }
+}

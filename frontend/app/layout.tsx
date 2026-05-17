@@ -19,8 +19,8 @@ const merriweather = Merriweather({
 });
 
 export const metadata: Metadata = {
-  title: "TheoCompass | Explore Your Theological Profile",
-  description: "A nuanced, data-driven map of the Christian theological landscape.",
+  title: "TheoCompass | Open Beta — Match Your Beliefs to 230+ Christian Denominations",
+  description: "Discover your theological alignment. Take the quiz, match your beliefs against 230+ Christian denominations across 13 dimensions, and find exactly where you stand in the Christian landscape.",
 };
 
 export default function RootLayout({

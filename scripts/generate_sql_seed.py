@@ -16,12 +16,12 @@ PRECOMP_DIR = os.path.join(ROOT_DIR, 'precomputed')
 
 # Build the absolute paths for every required file
 FILES = {
-    'denominations': os.path.join(DATA_DIR, 'TheoCompass (v2.0) - Pre-demo_Denominations.csv'),
     'questions': os.path.join(DATA_DIR, 'TheoCompass (v2.0) - QUESTION_MASTER.csv'),
     'answers': os.path.join(DATA_DIR, 'TheoCompass (v2.0) - Unified Answer Scoring Matrix.csv'),
-    'doctrines': os.path.join(DATA_DIR, 'TheoCompass (v2.0) - Denominations & Doctrines_EXPORT.csv'),
+    'doctrines': os.path.join(DATA_DIR, 'TheoCompass (v2.0) - Denominations & Doctrines_EXPORT.tsv'),
     'hidden_dims': os.path.join(DATA_DIR, 'TheoCompass (v2.0) - Hidden Dimensions.csv'), # Fixed filename spacing
     'sequence': os.path.join(DATA_DIR, 'TheoCompass (v2.0) - QUIZ_SEQUENCE.csv'),
+    'families': os.path.join(DATA_DIR, 'TheoCompass (v2.0) - FAMILIES.csv'),
     
     # This one comes from the Node.js output!
     'mode_summary': os.path.join(PRECOMP_DIR, 'denomination_mode_summary.csv')
@@ -66,6 +66,7 @@ def main():
     DROP TABLE IF EXISTS denomination_compass_coordinates;
     DROP TABLE IF EXISTS hidden_dimensions;
     DROP TABLE IF EXISTS answer_scoring;
+    DROP TABLE IF EXISTS denomination_families;
 
     -- 2. Recreate tables with correct schemas
     CREATE TABLE denominations (id TEXT PRIMARY KEY, name TEXT, family TEXT, founded_year TEXT, region_origin TEXT, description TEXT);
@@ -89,7 +90,7 @@ def main():
     
     CREATE TABLE denomination_selected_options (denomination_id TEXT, question_id TEXT, answer_text TEXT);
     
-    CREATE TABLE denomination_compass_coordinates (denomination_id TEXT, mode TEXT, tolerance_score REAL, theol_cons_lib_avg REAL, social_cons_lib_avg REAL, counter_pro_modern_avg REAL, super_nat_avg REAL, cult_sep_eng_avg REAL, cleric_egal_avg REAL, div_hum_agency_avg REAL, commun_indiv_avg REAL, liturg_spont_avg REAL, sacram_funct_avg REAL, literal_crit_avg REAL, intellect_exper_avg REAL, PRIMARY KEY (denomination_id, mode));
+    CREATE TABLE denomination_compass_coordinates (denomination_id TEXT, mode TEXT, family TEXT, tolerance_score REAL, theol_cons_lib_avg REAL, social_cons_lib_avg REAL, counter_pro_modern_avg REAL, super_nat_avg REAL, cult_sep_eng_avg REAL, cleric_egal_avg REAL, div_hum_agency_avg REAL, commun_indiv_avg REAL, liturg_spont_avg REAL, sacram_funct_avg REAL, literal_crit_avg REAL, intellect_exper_avg REAL, PRIMARY KEY (denomination_id, mode));
     
     CREATE TABLE hidden_dimensions (question_id TEXT PRIMARY KEY, theol_cons_lib REAL, social_cons_lib REAL, counter_pro_modern REAL, super_nat REAL, cult_sep_eng REAL, cleric_egal REAL, div_hum_agency REAL, commun_indiv REAL, liturg_spont REAL, sacram_funct REAL, literal_crit REAL, intellect_exper REAL);
     
@@ -99,9 +100,9 @@ def main():
     
     sql_statements.append(schema_sql)
 
-    # 1. Denominations
+    # 1. Denominations & Families
     print("Processing Denominations...")
-    df_denoms = pd.read_csv(FILES['doctrines'])
+    df_denoms = pd.read_csv(FILES['doctrines'], sep='\t')
     sql_statements.append("-- ==========================================")
     sql_statements.append("-- TABLE: denominations")
     sql_statements.append("-- ==========================================")
@@ -114,6 +115,32 @@ def main():
         desc = clean_str(row.get('Description'))
         
         sql = f"INSERT OR REPLACE INTO denominations (id, name, family, founded_year, region_origin, description) VALUES ({d_id}, {name}, {family}, {year}, {region}, {desc});"
+        sql_statements.append(sql)
+
+    print("Processing Families...")
+    # Add to file paths at the top: 'families': os.path.join(DATA_DIR, 'TheoCompass v2.0 - FAMILIES.csv')
+    df_families = pd.read_csv(FILES['families'])
+    
+    sql_statements.append("-- TABLE denomination_families")
+    sql_statements.append("DROP TABLE IF EXISTS denomination_families;")
+    sql_statements.append("""
+    CREATE TABLE denomination_families (
+        family_name TEXT PRIMARY KEY,
+        century TEXT,
+        region_origin TEXT,
+        approx_members TEXT,
+        description TEXT
+    );
+    """)
+    
+    for _, row in df_families.iterrows():
+        name = clean_str(row['Family_Name'])
+        century = clean_str(row.get('Founded_Century'))
+        region = clean_str(row.get('Region_Origin'))
+        members = clean_str(row.get('Est_Members_Global'))
+        desc = clean_str(row.get('Description'))
+        
+        sql = f"INSERT OR REPLACE INTO denomination_families (family_name, century, region_origin, approx_members, description) VALUES ({name}, {century}, {region}, {members}, {desc});"
         sql_statements.append(sql)
 
     # 2. Questions (Merged with Sequence)
@@ -225,9 +252,20 @@ def main():
     sql_statements.append("-- TABLE: denomination_compass_coordinates")
     sql_statements.append("-- ==========================================")
     
+    # Build family lookup from the already-loaded denominations dataframe
+    family_lookup = dict(zip(
+        df_denoms['Denomination_ID'].astype(str).str.strip(),
+        df_denoms['Denomination_Family'].fillna('Unknown').astype(str).str.strip()
+    ))
+
     for _, row in df_mode.iterrows():
         d_id = clean_str(row['Denomination_ID'])
         mode = clean_str(row['Mode'])
+        
+        # Resolve family from denominations table
+        raw_denom_id = str(row['Denomination_ID']).strip()
+        family = clean_str(family_lookup.get(raw_denom_id, 'Unknown'))
+        
         tol_score = clean_num(row['ToleranceScore'])
         
         # Dimensions
@@ -244,7 +282,13 @@ def main():
         lc = clean_num(row['Literal_Crit_avg'])
         ie = clean_num(row['Intellect_Exper_avg'])
         
-        sql = f"INSERT OR REPLACE INTO denomination_compass_coordinates (denomination_id, mode, tolerance_score, theol_cons_lib_avg, social_cons_lib_avg, counter_pro_modern_avg, super_nat_avg, cult_sep_eng_avg, cleric_egal_avg, div_hum_agency_avg, commun_indiv_avg, liturg_spont_avg, sacram_funct_avg, literal_crit_avg, intellect_exper_avg) VALUES ({d_id}, {mode}, {tol_score}, {tcl}, {scl}, {cpm}, {sn}, {cse}, {ce}, {dha}, {ci}, {ls}, {sf}, {lc}, {ie});"
+        sql = (
+            f"INSERT OR REPLACE INTO denomination_compass_coordinates "
+            f"(denomination_id, mode, family, tolerance_score, theol_cons_lib_avg, social_cons_lib_avg, "
+            f"counter_pro_modern_avg, super_nat_avg, cult_sep_eng_avg, cleric_egal_avg, div_hum_agency_avg, "
+            f"commun_indiv_avg, liturg_spont_avg, sacram_funct_avg, literal_crit_avg, intellect_exper_avg) "
+            f"VALUES ({d_id}, {mode}, {family}, {tol_score}, {tcl}, {scl}, {cpm}, {sn}, {cse}, {ce}, {dha}, {ci}, {ls}, {sf}, {lc}, {ie});"
+        )
         sql_statements.append(sql)
 
 
